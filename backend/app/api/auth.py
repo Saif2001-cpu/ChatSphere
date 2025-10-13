@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from passlib.context import CryptContext
 from uuid import UUID,uuid4
 from bson import ObjectId
-from app.core.security import create_access_token
+from fastapi import FastAPI,UploadFile,Form
+from dotenv import load_dotenv
+load_dotenv()
 
+
+
+from app.core.security import create_access_token
 from app.core.db import get_db
 from app.models.user import User
 
@@ -20,6 +25,7 @@ class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     password: str = Field(..., min_length=6, max_length=100)
+    
 
 
 class LoginRequest(BaseModel):
