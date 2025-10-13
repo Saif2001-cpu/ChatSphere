@@ -1,55 +1,46 @@
 // Message.js
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Navbar from "./Navbar";
 import ChatBox from "./ChatBox";
-import { useState,useEffect } from "react";
 
 export default function Message({ contact, chatId, currentUserId }) {
-
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const messagesEndRef = useRef(null);
 
-
-  useEffect(() => {
-    if(!chatId) {
+  // Move fetchMessages outside useEffect
+  const fetchMessages = async () => {
+    if (!chatId) {
       setMessages([]);
       return;
     }
-
-    const fetchMessages = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-         const response = await fetch(`http://localhost:8000/chats/messages/${chatId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch messages");
-        }
-        const data = await response.json();
-         setMessages(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error("Error fetching messages:", err);
-        setError(err.message);
-        setMessages([]);
-
-      } finally {
-        setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`http://localhost:8000/chats/messages/${chatId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch messages");
       }
-    };
+      const data = await response.json();
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+      setError(err.message);
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchMessages();
-
-    const interval = setInterval(fetchMessages, 2000); // Poll every 5 seconds
-    return () => clearInterval(interval); // Cleanup on unmount or chatId change
+    // eslint-disable-next-line
   }, [chatId]);
-
-
-  const messagesEndRef = React.useRef(null);
 
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
@@ -60,7 +51,8 @@ export default function Message({ contact, chatId, currentUserId }) {
       </div>
     );
   }
- return (
+
+  return (
     <div className="d-flex flex-column h-100">
       {/* Navbar */}
       <div className="border-bottom">
@@ -88,8 +80,8 @@ export default function Message({ contact, chatId, currentUserId }) {
                 key={msg._id}
                 className={`mb-2 p-2 rounded ${
                   msg.sender_id === currentUserId
-                    ? "bg-primary text-white ms-auto" // Sent by me → right-aligned
-                    : "bg-light text-dark"           // Received → left-aligned
+                    ? "bg-primary text-white ms-auto"
+                    : "bg-light text-dark"
                 }`}
                 style={{
                   maxWidth: "70%",
@@ -123,9 +115,7 @@ export default function Message({ contact, chatId, currentUserId }) {
           chatId={chatId}
           currentUserId={currentUserId}
           receiverId={contact.user_id}
-          onMessageSent={() => {
-            // Refresh messages after sending
-          }}
+          onMessageSent={fetchMessages}
         />
       </div>
     </div>

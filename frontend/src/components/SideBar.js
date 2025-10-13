@@ -17,9 +17,18 @@ export default function SideBar({ currentUser, onSelectContact }) {
   };
 
   return (
-    <div className="bg-light p-3 h-100 border-end" style={{ minWidth: "250px", overflowY: "auto" }}>
+     <div
+      className="bg-light p-3 h-100 border-end"
+      style={{
+        minWidth: "200px",
+        maxWidth: "100%",
+        width: "100%",
+        overflowY: "auto",
+        boxSizing: "border-box",
+      }}
+    >
       <h5 className="mb-3">Chat with anyone</h5>
-      
+
       {/* Search */}
       <UserSearch onUserFound={handleUserFound} />
 
