@@ -6,7 +6,7 @@ from datetime import datetime
 class ChatMessageCreate(BaseModel):
     room_id: str
     content: str = Field(..., min_length=1)
-
+    image_url: Optional[str] = None
 
 class ChatMessageInDB(BaseModel):
     id: str
@@ -14,6 +14,7 @@ class ChatMessageInDB(BaseModel):
     sender_id: str
     content: str
     created_at: datetime
+    image_url: Optional[str] = None
 
 
 class ChatRoomCreate(BaseModel):

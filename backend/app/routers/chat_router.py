@@ -25,6 +25,30 @@ async def create_room(room_in: ChatRoomCreate, current_user: UserInDB = Depends(
         room_in.participants.append(current_user.id)
     return await create_chat_room(room_in)
 
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from typing import List
+import shutil
+import uuid
+import os
+
+# ... other imports ...
+
+# Add to existing router
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    # Generate unique filename
+    file_extension = file.filename.split(".")[-1]
+    file_name = f"{uuid.uuid4()}.{file_extension}"
+    file_path = f"static/uploads/{file_name}"
+    
+    # Save file to disk
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Return the URL (Assuming running on localhost:8000)
+    return {"url": f"http://localhost:8000/static/uploads/{file_name}"}
+
+# ... existing routes ...
 
 @router.get("/rooms/{room_id}/messages", response_model=List[ChatMessageInDB])
 async def get_room_messages(

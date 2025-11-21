@@ -1,12 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.core.config import settings
 from app.routers import auth_router, user_router, chat_router
 from app.websocket import chat_ws
 
+os.makedirs("static/uploads", exist_ok=True)
+
 app = FastAPI(title=settings.APP_NAME)
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
 # CORS
 app.add_middleware(
     CORSMiddleware,

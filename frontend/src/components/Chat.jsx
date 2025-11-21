@@ -1,18 +1,22 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api, { WS_URL } from '../api';
-import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Badge } from 'react-bootstrap';
+import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image } from 'react-bootstrap';
 
 const Chat = () => {
   const { user, token, logout } = useContext(AuthContext);
   
   // State
-  const [friends, setFriends] = useState([]); // Using friends list as "chat list"
+  const [friends, setFriends] = useState([]); 
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [ws, setWs] = useState(null);
+
+  // State for file upload
+  const [selectedFile, setSelectedFile] = useState(null);
+  const fileInputRef = useRef(null);
 
   // Search State
   const [showSearch, setShowSearch] = useState(false);
@@ -21,71 +25,50 @@ const Chat = () => {
 
   const messagesEndRef = useRef(null);
 
-  // 1. Fetch friends/users on mount
+  // 1. Fetch friends on mount
   useEffect(() => {
     fetchFriends();
   }, []);
 
   const fetchFriends = async () => {
     try {
-      // Based on your user_router.py, this returns a list of UserPublic objects
       const res = await api.get('/users/friends'); 
-      
-      // Note: Your friend_services.py stores friends as a list of IDs strings in the user document.
-      // However, the user_router.py /friends endpoint returns "current_user.friends".
-      // If your backend only returns IDs, we might need to fetch full user details for each ID.
-      // Assuming for now user_router might need adjustment or friends contains objects. 
-      // *Correction based on provided backend*: 
-      // The backend `get_friends` returns `current_user.friends` which is `List[str]`.
-      // We need to fetch details for these IDs. Since there is no bulk fetch endpoint in the provided files,
-      // we will fetch user details one by one or use the search/list endpoint if available.
-      // Workaround: We will fetch all users and filter (not efficient for prod but works here) OR
-      // assuming the user meant the backend to populate this.
-      // Let's use the search endpoint or just fetch list of all users and match IDs for this demo.
-      
       const friendIds = res.data; 
       if (friendIds.length > 0) {
-        // Fetching all users to map IDs to Names (Optimization needed in backend later)
         const allUsersRes = await api.get('/users/');
         const friendObjects = allUsersRes.data.filter(u => friendIds.includes(u.id));
         setFriends(friendObjects);
       } else {
         setFriends([]);
       }
-
     } catch (err) {
       console.error("Failed to fetch friends", err);
     }
   };
 
-  // 2. Handle selecting a friend to chat
+  // 2. Handle selecting a friend
   const handleSelectFriend = async (friend) => {
     setSelectedFriend(friend);
     try {
-      // Get or create direct room (chat_router.py)
       const res = await api.post(`/chats/rooms/direct/${friend.id}`);
       setActiveRoom(res.data);
-      setMessages([]); // Clear previous messages while loading
+      setMessages([]); 
     } catch (err) {
       console.error("Failed to get room", err);
     }
   };
 
-  // 3. Fetch history & Connect WebSocket when room changes
+  // 3. Fetch history & Connect WebSocket
   useEffect(() => {
     if (!activeRoom) return;
 
-    // Fetch message history (chat_router.py)
     const fetchHistory = async () => {
       const res = await api.get(`/chats/rooms/${activeRoom.id}/messages?limit=50`);
-      // The backend returns messages in reverse chronological order (newest first) due to [::-1] in service? 
-      // Actually service does .sort(-1) then [::-1], so it returns Oldest -> Newest.
       setMessages(res.data);
     };
 
     fetchHistory();
 
-    // Connect WebSocket (chat_ws.py)
     const socket = new WebSocket(`${WS_URL}/ws/chat/${activeRoom.id}?token=${token}`);
     
     socket.onopen = () => console.log("WS Connected");
@@ -104,22 +87,56 @@ const Chat = () => {
     };
   }, [activeRoom, token]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom whenever messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // 4. Send Message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || !ws) return;
-
-    // Based on chat_ws.py: it expects JSON with "content"
-    ws.send(JSON.stringify({ content: inputMessage }));
-    setInputMessage('');
+  
+  // Handle File Selection
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
   };
 
-  // 5. User Search & Add Friend
+  // 4. Send Message (Text + Image)
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    // Prevent sending if both inputs are empty
+    if ((!inputMessage.trim() && !selectedFile) || !ws) return;
+
+    let imageUrl = null;
+
+    // 1. Upload image if selected
+    if (selectedFile) {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const res = await api.post('/chats/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        imageUrl = res.data.url;
+      } catch (err) {
+        console.error("Upload failed", err);
+        alert("Failed to upload image");
+        return;
+      }
+    }
+
+    // 2. Send WebSocket message
+    ws.send(JSON.stringify({ 
+      content: inputMessage,
+      image_url: imageUrl 
+    }));
+
+    // 3. Reset inputs
+    setInputMessage('');
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  
+  // 5. Search & Add Friend
   const handleSearch = async (e) => {
     e.preventDefault();
     try {
@@ -134,7 +151,7 @@ const Chat = () => {
     try {
       await api.post(`/users/add-friend/${friendId}`);
       setShowSearch(false);
-      fetchFriends(); // Refresh list
+      fetchFriends();
       alert("Friend added!");
     } catch (err) {
       alert("Failed to add friend");
@@ -144,7 +161,7 @@ const Chat = () => {
   return (
     <div className="vh-100 d-flex flex-column overflow-hidden">
       {/* Navbar */}
-      <Navbar bg="primary" variant="dark" className="px-3">
+      <Navbar bg="primary" variant="dark" className="px-3" style={{ flexShrink: 0 }}>
         <Navbar.Brand>ChatSphere</Navbar.Brand>
         <Navbar.Toggle />
         <Navbar.Collapse className="justify-content-end">
@@ -160,11 +177,14 @@ const Chat = () => {
         </Navbar.Collapse>
       </Navbar>
 
-      <Container fluid className="flex-grow-1 d-flex p-0" style={{ height: 'calc(100vh - 56px)' }}>
-        <Row className="w-100 m-0">
-          {/* Sidebar - Friend List */}
-          <Col md={3} className="border-end p-0 bg-light d-flex flex-column">
-            <div className="p-3 border-bottom bg-white">
+      {/* Main Layout Container */}
+      <Container fluid className="flex-grow-1 d-flex p-0" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
+        {/* Added h-100 to Row to ensure it takes full height of container */}
+        <Row className="w-100 m-0 h-100">
+          
+          {/* Sidebar: Added h-100 and overflow-hidden to ensure proper scrolling inside list */}
+          <Col md={3} className="border-end p-0 bg-light d-flex flex-column h-100">
+            <div className="p-3 border-bottom bg-white" style={{ flexShrink: 0 }}>
               <h5 className="m-0">Friends</h5>
             </div>
             <ListGroup variant="flush" className="flex-grow-1 overflow-auto">
@@ -188,18 +208,18 @@ const Chat = () => {
             </ListGroup>
           </Col>
 
-          {/* Chat Area */}
-          <Col md={9} className="p-0 d-flex flex-column bg-white">
+          {/* Chat Area: Added h-100 to ensure it stays within viewport */}
+          <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
             {activeRoom ? (
               <>
                 {/* Chat Header */}
-                <div className="p-3 border-bottom shadow-sm">
+                <div className="p-3 border-bottom shadow-sm" style={{ flexShrink: 0 }}>
                   <h5 className="m-0">
                     {selectedFriend ? selectedFriend.username : "Chat"}
                   </h5>
                 </div>
 
-                {/* Messages */}
+                {/* Messages Area: overflow-auto handles the scrolling here */}
                 <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
                   {messages.map((msg, idx) => {
                     const isMe = msg.sender_id === user.id;
@@ -209,7 +229,22 @@ const Chat = () => {
                           className={`p-3 rounded shadow-sm ${isMe ? 'bg-primary text-white' : 'bg-white border'}`}
                           style={{ maxWidth: '70%' }}
                         >
-                          <div>{msg.content}</div>
+                          {/* Render Image if present */}
+                          {msg.image_url && (
+                            <div className="mb-2">
+                              <Image 
+                                src={msg.image_url} 
+                                alt="Shared content" 
+                                fluid 
+                                rounded 
+                                style={{ maxHeight: '200px' }} 
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Render Text Content */}
+                          {msg.content && <div>{msg.content}</div>}
+                          
                           <div className={`small mt-1 text-end ${isMe ? 'text-white-50' : 'text-muted'}`}>
                             {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                           </div>
@@ -221,9 +256,36 @@ const Chat = () => {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-3 bg-light border-top">
+                <div className="p-3 bg-light border-top" style={{ flexShrink: 0 }}>
+                  {/* File Preview */}
+                  {selectedFile && (
+                    <div className="mb-2 p-2 bg-white border rounded d-inline-block position-relative">
+                       <small>{selectedFile.name}</small>
+                       <Button 
+                          variant="link" 
+                          size="sm" 
+                          className="text-danger p-0 ms-2" 
+                          onClick={() => { setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ""; }}
+                       >
+                         ✕
+                       </Button>
+                    </div>
+                  )}
+                  
                   <Form onSubmit={handleSendMessage}>
                     <InputGroup>
+                      {/* File Attachment Button */}
+                      <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()}>
+                        📎
+                      </Button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: 'none' }} 
+                        onChange={handleFileChange}
+                        accept="image/*"
+                      />
+                      
                       <Form.Control
                         placeholder="Type a message..."
                         value={inputMessage}
@@ -266,7 +328,6 @@ const Chat = () => {
                   <strong>{u.username}</strong>
                   <br/><small className="text-muted">{u.email}</small>
                 </div>
-                {/* Hide Add button if it's me or already a friend */}
                 {u.id !== user.id && !friends.some(f => f.id === u.id) && (
                   <Button size="sm" onClick={() => addFriend(u.id)}>Add</Button>
                 )}

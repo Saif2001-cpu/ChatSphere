@@ -30,8 +30,8 @@ async def get_or_create_direct_room(user1_id: str, user2_id: str) -> ChatRoomInD
     return ChatRoomInDB(**doc)
 
 
-async def send_message(room_id: str, sender_id: str, content: str) -> ChatMessageInDB:
-    doc = await insert_message(room_id, sender_id, content)
+async def send_message(room_id: str, sender_id: str, content: str ,image_url: str = None) -> ChatMessageInDB:
+    doc = await insert_message(room_id, sender_id, content ,image_url)
     return ChatMessageInDB(**doc)
 
 

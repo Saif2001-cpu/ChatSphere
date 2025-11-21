@@ -55,11 +55,11 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         while True:
             data = await websocket.receive_json()
             content = data.get("content")
+            image_url = data.get("image_url")
             if not content:
                 continue
 
-            msg = await send_message(room_id, user_id, content)
-
+            msg = await send_message(room_id, user_id, content, image_url)
             await manager.broadcast(
                 room_id,
                 {
@@ -67,6 +67,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                     "room_id": msg.room_id,
                     "sender_id": msg.sender_id,
                     "content": msg.content,
+                    "image_url": msg.image_url,
                     "created_at": msg.created_at.isoformat(),
                 },
             )
