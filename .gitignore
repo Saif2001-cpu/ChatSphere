@@ -1,3 +1,108 @@
-/backend/.env
-/backend/__pycache__/
-/backend/venv/
+# Node dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+
+# Build outputs
+dist/
+build/
+.out/
+.vite/
+.public_build/
+storybook-static/
+
+# Next/Vercel/Nuxt/SvelteKit/etc.
+.next/
+.next/cache/
+.vercel/
+.nuxt/
+.svelte-kit/
+
+# Coverage
+coverage/
+coverage-final.json
+lcov-report/
+
+# Environment variables
+.env
+.env.*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.envrc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~.nib
+*.iml
+
+# TypeScript
+*.tsbuildinfo
+
+# Yarn modern
+.yarn/*
+!.yarn/releases/
+!.yarn/plugins/
+!.yarn/sdks/
+!.yarn/patches/
+.yarn/cache/
+.yarn/unplugged/
+
+# Package manager lockfiles (keep lockfiles if you prefer; uncomment to ignore)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Keys, certs, secrets
+*.pem
+*.key
+*.crt
+secrets/
+keypairs/
+
+# Docker
+docker-compose.override.yml
+.Dockerfile.swp
+
+# Misc
+*.local
+*.log.*
+.cache/
+.vagrant/
+coverage/
+
+.venv/
