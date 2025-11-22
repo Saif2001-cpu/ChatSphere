@@ -56,7 +56,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             data = await websocket.receive_json()
             content = data.get("content")
             image_url = data.get("image_url")
-            if not content:
+            if not content and not image_url:
                 continue
 
             msg = await send_message(room_id, user_id, content, image_url)
