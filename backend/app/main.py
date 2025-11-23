@@ -21,6 +21,7 @@ origins = [
     "http://localhost:3000",  # Alternative local port
     "https://chatsphere-m3ynk0gjf-saif2001cpus-projects.vercel.app", # Your specific Vercel Deployment
     "https://chatsphere.vercel.app",
+     "https://baat-cheet-ten.vercel.app",
       # Your main Vercel Domain (if you have one)
 ]
 
