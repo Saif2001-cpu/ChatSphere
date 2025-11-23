@@ -1,33 +1,52 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api, { WS_URL } from '../api';
-import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image } from 'react-bootstrap';
+import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image, Dropdown, Tab, Tabs } from 'react-bootstrap';
+
+// ... formatIndianTime helper ...
+const formatIndianTime = (dateString) => {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 
 const Chat = () => {
   const { user, token, logout } = useContext(AuthContext);
   
-  // State
+  // Data State
   const [friends, setFriends] = useState([]); 
-  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [groups, setGroups] = useState([]); // Store groups here
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
+  
+  // UI State
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [selectedGroup, setSelectedGroup] = useState(null); // Track active group
   const [inputMessage, setInputMessage] = useState('');
-  const [ws, setWs] = useState(null);
-
-  // State for file upload
-  const [selectedFile, setSelectedFile] = useState(null);
-  const fileInputRef = useRef(null);
-
-  // Search State
   const [showSearch, setShowSearch] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false); // Group Modal State
+  
+  // Create Group Form State
+  const [newGroupName, setNewGroupName] = useState("");
+  const [selectedGroupFriends, setSelectedGroupFriends] = useState([]);
+
+  const [ws, setWs] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  
+  const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // 1. Fetch friends on mount
+  // 1. Initial Fetch
   useEffect(() => {
     fetchFriends();
+    fetchGroups(); // Fetch groups on load
   }, []);
 
   const fetchFriends = async () => {
@@ -46,9 +65,23 @@ const Chat = () => {
     }
   };
 
-  // 2. Handle selecting a friend
+  const fetchGroups = async () => {
+    try {
+      const res = await api.get('/chats/rooms');
+      // Filter only group chats (is_group = true)
+      const groupRooms = res.data.filter(room => room.is_group);
+      setGroups(groupRooms);
+    } catch (err) {
+      console.error("Failed to fetch groups", err);
+    }
+  };
+
+  // 2. Handlers
   const handleSelectFriend = async (friend) => {
     setSelectedFriend(friend);
+    setSelectedGroup(null); // Deselect group
+    setEditingMessageId(null);
+    setInputMessage("");
     try {
       const res = await api.post(`/chats/rooms/direct/${friend.id}`);
       setActiveRoom(res.data);
@@ -58,7 +91,49 @@ const Chat = () => {
     }
   };
 
-  // 3. Fetch history & Connect WebSocket
+  const handleSelectGroup = (group) => {
+    setSelectedGroup(group);
+    setSelectedFriend(null); // Deselect friend
+    setActiveRoom(group);
+    setEditingMessageId(null);
+    setInputMessage("");
+    setMessages([]);
+  };
+
+  // 3. Group Creation Logic
+  const handleGroupCheck = (friendId) => {
+    if (selectedGroupFriends.includes(friendId)) {
+      setSelectedGroupFriends(prev => prev.filter(id => id !== friendId));
+    } else {
+      setSelectedGroupFriends(prev => [...prev, friendId]);
+    }
+  };
+
+  const createGroup = async (e) => {
+    e.preventDefault();
+    if (!newGroupName || selectedGroupFriends.length === 0) {
+        alert("Please enter a name and select at least one friend.");
+        return;
+    }
+
+    try {
+        await api.post('/chats/rooms', {
+            name: newGroupName,
+            is_group: true,
+            participants: selectedGroupFriends
+        });
+        setShowCreateGroup(false);
+        setNewGroupName("");
+        setSelectedGroupFriends([]);
+        fetchGroups(); // Refresh list
+        alert("Group created!");
+    } catch (err) {
+        console.error("Failed to create group", err);
+        alert("Error creating group");
+    }
+  };
+
+  // ... existing useEffect for WebSocket & History ...
   useEffect(() => {
     if (!activeRoom) return;
 
@@ -74,77 +149,81 @@ const Chat = () => {
     socket.onopen = () => console.log("WS Connected");
     
     socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      setMessages((prev) => [...prev, msg]);
+      const data = JSON.parse(event.data);
+      if (data.type === 'create' || !data.type) {
+          setMessages((prev) => [...prev, data]);
+      } else if (data.type === 'edit') {
+          setMessages((prev) => prev.map(msg => 
+              msg.id === data.id ? { ...msg, content: data.content, updated_at: data.updated_at } : msg
+          ));
+      } else if (data.type === 'delete') {
+          setMessages((prev) => prev.filter(msg => msg.id !== data.id));
+      }
     };
 
     socket.onclose = () => console.log("WS Disconnected");
-
     setWs(socket);
 
-    return () => {
-      socket.close();
-    };
+    return () => socket.close();
   }, [activeRoom, token]);
 
-  // Auto-scroll to bottom whenever messages change
+  // ... existing scroll effect, handleFileChange, handleSendMessage, startEditing, deleteMessage ...
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // Handle File Selection
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
     }
   };
 
-  // 4. Send Message (Text + Image)
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    // Prevent sending if both inputs are empty
     if ((!inputMessage.trim() && !selectedFile) || !ws) return;
 
-    let imageUrl = null;
+    if (editingMessageId) {
+        ws.send(JSON.stringify({ type: 'edit', message_id: editingMessageId, content: inputMessage }));
+        setEditingMessageId(null);
+        setInputMessage("");
+        return;
+    }
 
-    // 1. Upload image if selected
+    let imageUrl = null;
     if (selectedFile) {
       const formData = new FormData();
       formData.append('file', selectedFile);
-
       try {
-        const res = await api.post('/chats/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        const res = await api.post('/chats/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         imageUrl = res.data.url;
-      } catch (err) {
-        console.error("Upload failed", err);
-        alert("Failed to upload image");
-        return;
-      }
+      } catch (err) { console.error(err); return; }
     }
 
-    // 2. Send WebSocket message
-    ws.send(JSON.stringify({ 
-      content: inputMessage,
-      image_url: imageUrl 
-    }));
-
-    // 3. Reset inputs
+    ws.send(JSON.stringify({ type: 'create', content: inputMessage, image_url: imageUrl }));
     setInputMessage('');
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  
-  // 5. Search & Add Friend
+
+  const startEditing = (msg) => {
+      setEditingMessageId(msg.id);
+      setInputMessage(msg.content || "");
+      setSelectedFile(null);
+  };
+
+  const deleteMessage = (msgId) => {
+      if(window.confirm("Delete this message?")) {
+          ws.send(JSON.stringify({ type: 'delete', message_id: msgId }));
+      }
+  };
+
+  // ... handleSearch, addFriend ...
   const handleSearch = async (e) => {
     e.preventDefault();
     try {
       const res = await api.get(`/users/search?q=${searchQuery}`);
       setSearchResults(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const addFriend = async (friendId) => {
@@ -152,10 +231,7 @@ const Chat = () => {
       await api.post(`/users/add-friend/${friendId}`);
       setShowSearch(false);
       fetchFriends();
-      alert("Friend added!");
-    } catch (err) {
-      alert("Failed to add friend");
-    }
+    } catch (err) { alert("Failed to add friend"); }
   };
 
   return (
@@ -165,88 +241,87 @@ const Chat = () => {
         <Navbar.Brand>ChatSphere</Navbar.Brand>
         <Navbar.Toggle />
         <Navbar.Collapse className="justify-content-end">
-          <Navbar.Text className="me-3 text-light">
-            Signed in as: <strong>{user?.username}</strong>
-          </Navbar.Text>
-          <Button variant="outline-light" size="sm" onClick={() => setShowSearch(true)}>
-            Find Friends
-          </Button>
-          <Button variant="light" size="sm" className="ms-2" onClick={logout}>
-            Logout
-          </Button>
+          <Navbar.Text className="me-3 text-light"><strong>{user?.username}</strong></Navbar.Text>
+          <Button variant="outline-light" size="sm" className="me-2" onClick={() => setShowCreateGroup(true)}>+ Group</Button>
+          <Button variant="outline-light" size="sm" onClick={() => setShowSearch(true)}>Find Users</Button>
+          <Button variant="light" size="sm" className="ms-2" onClick={logout}>Logout</Button>
         </Navbar.Collapse>
       </Navbar>
 
-      {/* Main Layout Container */}
       <Container fluid className="flex-grow-1 d-flex p-0" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
-        {/* Added h-100 to Row to ensure it takes full height of container */}
         <Row className="w-100 m-0 h-100">
           
-          {/* Sidebar: Added h-100 and overflow-hidden to ensure proper scrolling inside list */}
+          {/* Sidebar - Now with Tabs or Sections */}
           <Col md={3} className="border-end p-0 bg-light d-flex flex-column h-100">
-            <div className="p-3 border-bottom bg-white" style={{ flexShrink: 0 }}>
-              <h5 className="m-0">Friends</h5>
-            </div>
-            <ListGroup variant="flush" className="flex-grow-1 overflow-auto">
-              {friends.map((friend) => (
-                <ListGroup.Item 
-                  key={friend.id} 
-                  action 
-                  active={selectedFriend?.id === friend.id}
-                  onClick={() => handleSelectFriend(friend)}
-                  className="border-0 border-bottom py-3"
-                >
-                  <strong>{friend.username}</strong>
-                  <div className="text-muted small">{friend.email}</div>
-                </ListGroup.Item>
-              ))}
-              {friends.length === 0 && (
-                <div className="p-3 text-center text-muted">
-                  No friends yet. Click "Find Friends" to start!
+            <div className="flex-grow-1 overflow-auto">
+                
+                {/* Groups Section */}
+                <div className="p-2 bg-white border-bottom">
+                    <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Groups</h6>
+                    <ListGroup variant="flush">
+                        {groups.map(grp => (
+                            <ListGroup.Item 
+                                key={grp.id} action 
+                                active={selectedGroup?.id === grp.id}
+                                onClick={() => handleSelectGroup(grp)}
+                                className="border-0 rounded mb-1 py-2"
+                            >
+                                <strong># {grp.name}</strong>
+                            </ListGroup.Item>
+                        ))}
+                        {groups.length === 0 && <div className="text-muted small px-3">No groups yet</div>}
+                    </ListGroup>
                 </div>
-              )}
-            </ListGroup>
+
+                {/* Friends Section */}
+                <div className="p-2">
+                    <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Direct Messages</h6>
+                    <ListGroup variant="flush">
+                        {friends.map(friend => (
+                            <ListGroup.Item 
+                                key={friend.id} action 
+                                active={selectedFriend?.id === friend.id}
+                                onClick={() => handleSelectFriend(friend)}
+                                className="border-0 rounded mb-1 py-2"
+                            >
+                                {friend.username}
+                            </ListGroup.Item>
+                        ))}
+                    </ListGroup>
+                </div>
+            </div>
           </Col>
 
-          {/* Chat Area: Added h-100 to ensure it stays within viewport */}
+          {/* Chat Area */}
           <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
             {activeRoom ? (
               <>
-                {/* Chat Header */}
                 <div className="p-3 border-bottom shadow-sm" style={{ flexShrink: 0 }}>
                   <h5 className="m-0">
-                    {selectedFriend ? selectedFriend.username : "Chat"}
+                    {selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username}
                   </h5>
                 </div>
 
-                {/* Messages Area: overflow-auto handles the scrolling here */}
                 <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
                   {messages.map((msg, idx) => {
                     const isMe = msg.sender_id === user.id;
+                    const timeString = formatIndianTime(msg.updated_at || msg.created_at);
                     return (
                       <div key={idx} className={`d-flex mb-3 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
-                        <div 
-                          className={`p-3 rounded shadow-sm ${isMe ? 'bg-primary text-white' : 'bg-white border'}`}
-                          style={{ maxWidth: '70%' }}
-                        >
-                          {/* Render Image if present */}
-                          {msg.image_url && (
-                            <div className="mb-2">
-                              <Image 
-                                src={msg.image_url} 
-                                alt="Shared content" 
-                                fluid 
-                                rounded 
-                                style={{ maxHeight: '200px' }} 
-                              />
-                            </div>
-                          )}
-                          
-                          {/* Render Text Content */}
-                          {msg.content && <div>{msg.content}</div>}
-                          
-                          <div className={`small mt-1 text-end ${isMe ? 'text-white-50' : 'text-muted'}`}>
-                            {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        <div className={`p-3 rounded shadow-sm position-relative ${isMe ? 'bg-primary text-white' : 'bg-white border'}`} style={{ maxWidth: '70%' }}>
+                          {msg.image_url && <Image src={msg.image_url} fluid rounded className="mb-2" style={{maxHeight:'200px'}} />}
+                          <div>{msg.content}</div>
+                          <div className={`d-flex justify-content-end align-items-center mt-1 small ${isMe ? 'text-white-50' : 'text-muted'}`}>
+                             <span className="me-2">{msg.updated_at && <span className="fst-italic me-1">(Edited)</span>}{timeString}</span>
+                             {isMe && (
+                               <Dropdown drop="start">
+                                 <Dropdown.Toggle as="div" bsPrefix="p-0" style={{cursor: 'pointer', lineHeight: 0}}>⋮</Dropdown.Toggle>
+                                 <Dropdown.Menu size="sm">
+                                   <Dropdown.Item onClick={() => startEditing(msg)}>Edit</Dropdown.Item>
+                                   <Dropdown.Item onClick={() => deleteMessage(msg.id)} className="text-danger">Delete</Dropdown.Item>
+                                 </Dropdown.Menu>
+                               </Dropdown>
+                             )}
                           </div>
                         </div>
                       </div>
@@ -255,82 +330,76 @@ const Chat = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area */}
                 <div className="p-3 bg-light border-top" style={{ flexShrink: 0 }}>
-                  {/* File Preview */}
-                  {selectedFile && (
-                    <div className="mb-2 p-2 bg-white border rounded d-inline-block position-relative">
-                       <small>{selectedFile.name}</small>
-                       <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="text-danger p-0 ms-2" 
-                          onClick={() => { setSelectedFile(null); if(fileInputRef.current) fileInputRef.current.value = ""; }}
-                       >
-                         ✕
-                       </Button>
-                    </div>
-                  )}
+                  {editingMessageId && <div className="bg-warning-subtle p-2 mb-2 rounded small">Editing... <Button variant="link" size="sm" onClick={() => {setEditingMessageId(null); setInputMessage("")}}>Cancel</Button></div>}
+                  {selectedFile && <div className="mb-2 small">{selectedFile.name} <Button variant="link" onClick={() => setSelectedFile(null)}>✕</Button></div>}
                   
                   <Form onSubmit={handleSendMessage}>
                     <InputGroup>
-                      {/* File Attachment Button */}
-                      <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()}>
-                        📎
-                      </Button>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        style={{ display: 'none' }} 
-                        onChange={handleFileChange}
-                        accept="image/*"
-                      />
-                      
-                      <Form.Control
-                        placeholder="Type a message..."
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                      />
-                      <Button variant="primary" type="submit">Send</Button>
+                      <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()} disabled={!!editingMessageId}>📎</Button>
+                      <input type="file" ref={fileInputRef} style={{display:'none'}} onChange={handleFileChange} />
+                      <Form.Control value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} placeholder="Type a message..." />
+                      <Button variant={editingMessageId ? "success" : "primary"} type="submit">{editingMessageId ? "Update" : "Send"}</Button>
                     </InputGroup>
                   </Form>
                 </div>
               </>
             ) : (
-              <div className="d-flex align-items-center justify-content-center h-100 text-muted">
-                <h4>Select a friend to start chatting</h4>
-              </div>
+              <div className="d-flex align-items-center justify-content-center h-100 text-muted"><h4>Select a chat to start</h4></div>
             )}
           </Col>
         </Row>
       </Container>
 
-      {/* Search Modal */}
+      {/* Create Group Modal */}
+      <Modal show={showCreateGroup} onHide={() => setShowCreateGroup(false)}>
+        <Modal.Header closeButton><Modal.Title>Create New Group</Modal.Title></Modal.Header>
+        <Modal.Body>
+            <Form onSubmit={createGroup}>
+                <Form.Group className="mb-3">
+                    <Form.Label>Group Name</Form.Label>
+                    <Form.Control 
+                        placeholder="e.g. Project Team" 
+                        value={newGroupName} 
+                        onChange={(e) => setNewGroupName(e.target.value)} 
+                        required 
+                    />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                    <Form.Label>Select Participants</Form.Label>
+                    <div className="border rounded p-2" style={{maxHeight: '200px', overflowY: 'auto'}}>
+                        {friends.map(friend => (
+                            <Form.Check 
+                                key={friend.id}
+                                type="checkbox"
+                                label={friend.username}
+                                checked={selectedGroupFriends.includes(friend.id)}
+                                onChange={() => handleGroupCheck(friend.id)}
+                            />
+                        ))}
+                        {friends.length === 0 && <div className="text-muted small">Add friends first to create a group.</div>}
+                    </div>
+                </Form.Group>
+                <Button type="submit" variant="primary" className="w-100" disabled={friends.length === 0}>Create Group</Button>
+            </Form>
+        </Modal.Body>
+      </Modal>
+
+      {/* Find Users Modal (Existing) */}
       <Modal show={showSearch} onHide={() => setShowSearch(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Find Users</Modal.Title>
-        </Modal.Header>
+        <Modal.Header closeButton><Modal.Title>Find Users</Modal.Title></Modal.Header>
         <Modal.Body>
           <Form onSubmit={handleSearch} className="mb-3">
             <InputGroup>
-              <Form.Control 
-                placeholder="Search by username..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <Form.Control placeholder="Search by username..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               <Button type="submit" variant="outline-primary">Search</Button>
             </InputGroup>
           </Form>
           <ListGroup>
             {searchResults.map(u => (
               <ListGroup.Item key={u.id} className="d-flex justify-content-between align-items-center">
-                <div>
-                  <strong>{u.username}</strong>
-                  <br/><small className="text-muted">{u.email}</small>
-                </div>
-                {u.id !== user.id && !friends.some(f => f.id === u.id) && (
-                  <Button size="sm" onClick={() => addFriend(u.id)}>Add</Button>
-                )}
+                <div><strong>{u.username}</strong><br/><small className="text-muted">{u.email}</small></div>
+                {u.id !== user.id && !friends.some(f => f.id === u.id) && <Button size="sm" onClick={() => addFriend(u.id)}>Add</Button>}
               </ListGroup.Item>
             ))}
           </ListGroup>

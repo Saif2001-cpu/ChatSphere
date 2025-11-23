@@ -20,6 +20,7 @@ from app.services.chat_service import (
     get_messages,
     send_message,
     get_or_create_direct_room,
+    get_user_rooms
 )
 
 router = APIRouter(prefix="/chats", tags=["Chats"])
@@ -48,6 +49,11 @@ async def create_room(room_in: ChatRoomCreate, current_user: UserInDB = Depends(
         room_in.participants.append(current_user.id)
     return await create_chat_room(room_in)
 
+
+# Add this endpoint to list user's rooms
+@router.get("/rooms", response_model=List[ChatRoomInDB])
+async def get_my_rooms(current_user: UserInDB = Depends(get_current_user)):
+    return await get_user_rooms(current_user.id)
 
 @router.post("/rooms/direct/{other_user_id}", response_model=ChatRoomInDB)
 async def get_or_create_direct(

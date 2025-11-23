@@ -14,6 +14,7 @@ class ChatMessageInDB(BaseModel):
     sender_id: str
     content: str
     created_at: datetime
+    updated_at: Optional[datetime] = None
     image_url: Optional[str] = None
 
 
