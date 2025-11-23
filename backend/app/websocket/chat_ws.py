@@ -51,7 +51,18 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             
             # Determine action type (default to 'create' for backward compatibility if needed)
             action = data.get("type", "create") 
-            
+            if action == "typing":
+                await manager.broadcast(room_id, {
+                    "type": "typing",
+                    "user_id": user_id,
+                    "username": data.get("username")
+                })
+            elif action == "stop_typing":
+                await manager.broadcast(room_id, {
+                    "type": "stop_typing",
+                    "user_id": user_id
+                })
+                
             if action == "create":
                 content = data.get("content")
                 image_url = data.get("image_url")

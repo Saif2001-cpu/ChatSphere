@@ -1,9 +1,9 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api, { WS_URL } from '../api';
-import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image, Dropdown, Tab, Tabs } from 'react-bootstrap';
+import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image, Dropdown } from 'react-bootstrap';
 
-// ... formatIndianTime helper ...
+// Helper to format date to Indian Timezone
 const formatIndianTime = (dateString) => {
   if (!dateString) return "";
   return new Date(dateString).toLocaleTimeString('en-IN', {
@@ -19,16 +19,16 @@ const Chat = () => {
   
   // Data State
   const [friends, setFriends] = useState([]); 
-  const [groups, setGroups] = useState([]); // Store groups here
+  const [groups, setGroups] = useState([]); 
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   
   // UI State
   const [selectedFriend, setSelectedFriend] = useState(null);
-  const [selectedGroup, setSelectedGroup] = useState(null); // Track active group
+  const [selectedGroup, setSelectedGroup] = useState(null); 
   const [inputMessage, setInputMessage] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [showCreateGroup, setShowCreateGroup] = useState(false); // Group Modal State
+  const [showCreateGroup, setShowCreateGroup] = useState(false); 
   
   // Create Group Form State
   const [newGroupName, setNewGroupName] = useState("");
@@ -43,10 +43,14 @@ const Chat = () => {
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // --- NEW: Typing State ---
+  const [typingUsers, setTypingUsers] = useState([]); // Fixed: Initialized as array
+  const typingTimeoutRef = useRef(null); // To handle auto-stop typing debounce
+
   // 1. Initial Fetch
   useEffect(() => {
     fetchFriends();
-    fetchGroups(); // Fetch groups on load
+    fetchGroups(); 
   }, []);
 
   const fetchFriends = async () => {
@@ -68,7 +72,6 @@ const Chat = () => {
   const fetchGroups = async () => {
     try {
       const res = await api.get('/chats/rooms');
-      // Filter only group chats (is_group = true)
       const groupRooms = res.data.filter(room => room.is_group);
       setGroups(groupRooms);
     } catch (err) {
@@ -79,9 +82,10 @@ const Chat = () => {
   // 2. Handlers
   const handleSelectFriend = async (friend) => {
     setSelectedFriend(friend);
-    setSelectedGroup(null); // Deselect group
+    setSelectedGroup(null);
     setEditingMessageId(null);
     setInputMessage("");
+    setTypingUsers([]); // Reset typing indicators
     try {
       const res = await api.post(`/chats/rooms/direct/${friend.id}`);
       setActiveRoom(res.data);
@@ -93,11 +97,12 @@ const Chat = () => {
 
   const handleSelectGroup = (group) => {
     setSelectedGroup(group);
-    setSelectedFriend(null); // Deselect friend
+    setSelectedFriend(null);
     setActiveRoom(group);
     setEditingMessageId(null);
     setInputMessage("");
     setMessages([]);
+    setTypingUsers([]); // Reset typing indicators
   };
 
   // 3. Group Creation Logic
@@ -125,7 +130,7 @@ const Chat = () => {
         setShowCreateGroup(false);
         setNewGroupName("");
         setSelectedGroupFriends([]);
-        fetchGroups(); // Refresh list
+        fetchGroups(); 
         alert("Group created!");
     } catch (err) {
         console.error("Failed to create group", err);
@@ -133,7 +138,7 @@ const Chat = () => {
     }
   };
 
-  // ... existing useEffect for WebSocket & History ...
+  // 4. WebSocket & History
   useEffect(() => {
     if (!activeRoom) return;
 
@@ -150,6 +155,7 @@ const Chat = () => {
     
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      
       if (data.type === 'create' || !data.type) {
           setMessages((prev) => [...prev, data]);
       } else if (data.type === 'edit') {
@@ -159,19 +165,58 @@ const Chat = () => {
       } else if (data.type === 'delete') {
           setMessages((prev) => prev.filter(msg => msg.id !== data.id));
       }
+      // --- Typing Events ---
+      else if (data.type === "typing") {
+          if (data.user_id !== user.id) {
+              setTypingUsers((prev) => {
+                  // Add user if not already in the list
+                  if (!prev.some(u => u.id === data.user_id)) {
+                      return [...prev, { id: data.user_id, username: data.username }];
+                  }
+                  return prev;
+              });
+          }
+      }
+      else if (data.type === "stop_typing") {
+          setTypingUsers((prev) => prev.filter(u => u.id !== data.user_id));
+      }
     };
-
+    
     socket.onclose = () => console.log("WS Disconnected");
     setWs(socket);
 
-    return () => socket.close();
-  }, [activeRoom, token]);
+    // Cleanup on unmount or room change
+    return () => {
+        socket.close();
+        setTypingUsers([]); // Clear typing users when switching rooms
+    };
+  }, [activeRoom, token, user.id]);
 
-  // ... existing scroll effect, handleFileChange, handleSendMessage, startEditing, deleteMessage ...
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
+  // --- NEW: Handle Input Change (Typing Logic) ---
+  const handleInputChange = (e) => {
+      setInputMessage(e.target.value);
+
+      if (!ws || !activeRoom) return;
+
+      // 1. Notify server "I am typing"
+      ws.send(JSON.stringify({
+          type: "typing",
+          username: user.username
+      }));
+
+      // 2. Clear existing timeout
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+      // 3. Set new timeout to send "stop_typing" after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+          ws.send(JSON.stringify({ type: "stop_typing" }));
+      }, 2000);
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
@@ -182,6 +227,11 @@ const Chat = () => {
     e.preventDefault();
     if ((!inputMessage.trim() && !selectedFile) || !ws) return;
 
+    // --- Stop typing immediately when sending ---
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    ws.send(JSON.stringify({ type: "stop_typing" }));
+
+    // Edit Logic
     if (editingMessageId) {
         ws.send(JSON.stringify({ type: 'edit', message_id: editingMessageId, content: inputMessage }));
         setEditingMessageId(null);
@@ -189,6 +239,7 @@ const Chat = () => {
         return;
     }
 
+    // File Upload Logic
     let imageUrl = null;
     if (selectedFile) {
       const formData = new FormData();
@@ -199,6 +250,7 @@ const Chat = () => {
       } catch (err) { console.error(err); return; }
     }
 
+    // Send Message
     ws.send(JSON.stringify({ type: 'create', content: inputMessage, image_url: imageUrl }));
     setInputMessage('');
     setSelectedFile(null);
@@ -217,7 +269,7 @@ const Chat = () => {
       }
   };
 
-  // ... handleSearch, addFriend ...
+  // Search Handlers
   const handleSearch = async (e) => {
     e.preventDefault();
     try {
@@ -251,7 +303,7 @@ const Chat = () => {
       <Container fluid className="flex-grow-1 d-flex p-0" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
         <Row className="w-100 m-0 h-100">
           
-          {/* Sidebar - Now with Tabs or Sections */}
+          {/* Sidebar */}
           <Col md={3} className="border-end p-0 bg-light d-flex flex-column h-100">
             <div className="flex-grow-1 overflow-auto">
                 
@@ -296,12 +348,14 @@ const Chat = () => {
           <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
             {activeRoom ? (
               <>
+                {/* Chat Header */}
                 <div className="p-3 border-bottom shadow-sm" style={{ flexShrink: 0 }}>
                   <h5 className="m-0">
                     {selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username}
                   </h5>
                 </div>
 
+                {/* Messages */}
                 <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
                   {messages.map((msg, idx) => {
                     const isMe = msg.sender_id === user.id;
@@ -330,7 +384,19 @@ const Chat = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {/* Input Area */}
                 <div className="p-3 bg-light border-top" style={{ flexShrink: 0 }}>
+                  
+                  {/* --- NEW: Typing Indicator UI --- */}
+                  {typingUsers.length > 0 && (
+                      <div className="text-muted small mb-2 fst-italic ms-2" style={{height: '20px'}}>
+                          {typingUsers.length === 1 
+                              ? `${typingUsers[0].username} is typing...`
+                              : `${typingUsers.length} people are typing...`
+                          }
+                      </div>
+                  )}
+
                   {editingMessageId && <div className="bg-warning-subtle p-2 mb-2 rounded small">Editing... <Button variant="link" size="sm" onClick={() => {setEditingMessageId(null); setInputMessage("")}}>Cancel</Button></div>}
                   {selectedFile && <div className="mb-2 small">{selectedFile.name} <Button variant="link" onClick={() => setSelectedFile(null)}>✕</Button></div>}
                   
@@ -338,7 +404,13 @@ const Chat = () => {
                     <InputGroup>
                       <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()} disabled={!!editingMessageId}>📎</Button>
                       <input type="file" ref={fileInputRef} style={{display:'none'}} onChange={handleFileChange} />
-                      <Form.Control value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} placeholder="Type a message..." />
+                      
+                      {/* Updated Input to use handleInputChange */}
+                      <Form.Control 
+                        value={inputMessage} 
+                        onChange={handleInputChange} 
+                        placeholder="Type a message..." 
+                      />
                       <Button variant={editingMessageId ? "success" : "primary"} type="submit">{editingMessageId ? "Update" : "Send"}</Button>
                     </InputGroup>
                   </Form>
@@ -385,7 +457,7 @@ const Chat = () => {
         </Modal.Body>
       </Modal>
 
-      {/* Find Users Modal (Existing) */}
+      {/* Find Users Modal */}
       <Modal show={showSearch} onHide={() => setShowSearch(false)}>
         <Modal.Header closeButton><Modal.Title>Find Users</Modal.Title></Modal.Header>
         <Modal.Body>
