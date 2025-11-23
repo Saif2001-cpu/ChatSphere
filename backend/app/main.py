@@ -13,9 +13,19 @@ app = FastAPI(title=settings.APP_NAME)
 
 #app.mount("/static", StaticFiles(directory="static"), name="static")
 # CORS
+
+# --- FIXED CORS SETUP ---
+origins = [
+    "http://localhost:5173", 
+    "http://localhost:5174",  # Local frontend
+    "http://localhost:3000",  # Alternative local port
+    "https://chatsphere-m3ynk0gjf-saif2001cpus-projects.vercel.app", # Your specific Vercel Deployment
+    "https://chatsphere.vercel.app" # Your main Vercel Domain (if you have one)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
