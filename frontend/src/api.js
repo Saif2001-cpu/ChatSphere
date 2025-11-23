@@ -1,10 +1,10 @@
 import axios from 'axios';
 
-// Use the environment variable if it exists (production), otherwise use localhost (development)
+// 1. Use the environment variable VITE_API_URL.
+// 2. If it doesn't exist (like when running locally), fallback to localhost:8000.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Automatically set the WebSocket URL based on the API URL
-// Replaces 'http' with 'ws' and 'https' with 'wss'
+// Automatically replace 'http' with 'ws' and 'https' with 'wss' for WebSockets
 export const WS_URL = API_URL.replace(/^http/, 'ws');
 
 const api = axios.create({
