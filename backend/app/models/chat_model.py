@@ -228,3 +228,18 @@ async def find_rooms_for_user(user_id: str):
     cursor = col.find({"participants": user_id})
     docs = await cursor.to_list(length=1000)
     return [room_helper(doc) for doc in docs]
+
+async def mark_message_as_read(message_id: str, user_id: str):
+    col = await get_message_collection()
+    try:
+        oid = ObjectId(message_id)
+    except:
+        return None
+    
+    # Add user_id to read_by set (avoids duplicates)
+    result = await col.find_one_and_update(
+        {"_id": oid},
+        {"$addToSet": {"read_by": user_id}},
+        return_document=True
+    )
+    return message_helper(result) if result else None

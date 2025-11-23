@@ -3,7 +3,7 @@ import { AuthContext } from '../context/AuthContext';
 import api, { WS_URL } from '../api';
 import { Container, Row, Col, ListGroup, Form, Button, Navbar, InputGroup, Modal, Image, Dropdown } from 'react-bootstrap';
 
-// Helper to format date to Indian Timezone
+// Helper to format date
 const formatIndianTime = (dateString) => {
   if (!dateString) return "";
   return new Date(dateString).toLocaleTimeString('en-IN', {
@@ -17,20 +17,18 @@ const formatIndianTime = (dateString) => {
 const Chat = () => {
   const { user, token, logout } = useContext(AuthContext);
   
-  // Data State
+  // State
   const [friends, setFriends] = useState([]); 
   const [groups, setGroups] = useState([]); 
   const [activeRoom, setActiveRoom] = useState(null);
   const [messages, setMessages] = useState([]);
   
-  // UI State
   const [selectedFriend, setSelectedFriend] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState(null); 
   const [inputMessage, setInputMessage] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false); 
   
-  // Create Group Form State
   const [newGroupName, setNewGroupName] = useState("");
   const [selectedGroupFriends, setSelectedGroupFriends] = useState([]);
 
@@ -43,9 +41,8 @@ const Chat = () => {
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // --- NEW: Typing State ---
-  const [typingUsers, setTypingUsers] = useState([]); // Fixed: Initialized as array
-  const typingTimeoutRef = useRef(null); // To handle auto-stop typing debounce
+  const [typingUsers, setTypingUsers] = useState([]); 
+  const typingTimeoutRef = useRef(null); 
 
   // 1. Initial Fetch
   useEffect(() => {
@@ -79,13 +76,12 @@ const Chat = () => {
     }
   };
 
-  // 2. Handlers
   const handleSelectFriend = async (friend) => {
     setSelectedFriend(friend);
     setSelectedGroup(null);
     setEditingMessageId(null);
     setInputMessage("");
-    setTypingUsers([]); // Reset typing indicators
+    setTypingUsers([]); 
     try {
       const res = await api.post(`/chats/rooms/direct/${friend.id}`);
       setActiveRoom(res.data);
@@ -102,10 +98,9 @@ const Chat = () => {
     setEditingMessageId(null);
     setInputMessage("");
     setMessages([]);
-    setTypingUsers([]); // Reset typing indicators
+    setTypingUsers([]); 
   };
 
-  // 3. Group Creation Logic
   const handleGroupCheck = (friendId) => {
     if (selectedGroupFriends.includes(friendId)) {
       setSelectedGroupFriends(prev => prev.filter(id => id !== friendId));
@@ -120,7 +115,6 @@ const Chat = () => {
         alert("Please enter a name and select at least one friend.");
         return;
     }
-
     try {
         await api.post('/chats/rooms', {
             name: newGroupName,
@@ -133,7 +127,6 @@ const Chat = () => {
         fetchGroups(); 
         alert("Group created!");
     } catch (err) {
-        console.error("Failed to create group", err);
         alert("Error creating group");
     }
   };
@@ -165,11 +158,10 @@ const Chat = () => {
       } else if (data.type === 'delete') {
           setMessages((prev) => prev.filter(msg => msg.id !== data.id));
       }
-      // --- Typing Events ---
+      // --- Typing ---
       else if (data.type === "typing") {
           if (data.user_id !== user.id) {
               setTypingUsers((prev) => {
-                  // Add user if not already in the list
                   if (!prev.some(u => u.id === data.user_id)) {
                       return [...prev, { id: data.user_id, username: data.username }];
                   }
@@ -180,38 +172,67 @@ const Chat = () => {
       else if (data.type === "stop_typing") {
           setTypingUsers((prev) => prev.filter(u => u.id !== data.user_id));
       }
+      // --- Read Receipt ---
+      else if (data.type === "read_receipt") {
+          setMessages((prev) => prev.map(msg => {
+              if (msg.id === data.message_id) {
+                  // Avoid duplicates
+                  const currentReads = msg.read_by || [];
+                  if(!currentReads.includes(data.user_id)) {
+                      return { ...msg, read_by: [...currentReads, data.user_id] };
+                  }
+              }
+              return msg;
+          }));
+      }
     };
     
     socket.onclose = () => console.log("WS Disconnected");
     setWs(socket);
 
-    // Cleanup on unmount or room change
     return () => {
         socket.close();
-        setTypingUsers([]); // Clear typing users when switching rooms
+        setTypingUsers([]);
     };
   }, [activeRoom, token, user.id]);
+
+  // --- READ RECEIPT LOGIC ---
+  // Whenever messages change (loaded or new received), check if *I* need to read them
+  useEffect(() => {
+      if(!activeRoom || !ws || messages.length === 0) return;
+
+      messages.forEach(msg => {
+          // If I am NOT the sender, and my ID is NOT in read_by
+          if (msg.sender_id !== user.id) {
+              const reads = msg.read_by || [];
+              if (!reads.includes(user.id)) {
+                  // Send read event
+                  ws.send(JSON.stringify({
+                      type: "read",
+                      message_id: msg.id
+                  }));
+                  
+                  // Optimistically update local state to avoid loops/spam
+                  setMessages(prev => prev.map(m => 
+                      m.id === msg.id 
+                      ? { ...m, read_by: [...(m.read_by || []), user.id] } 
+                      : m
+                  ));
+              }
+          }
+      });
+  }, [messages, activeRoom, ws, user.id]);
+
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   
-  // --- NEW: Handle Input Change (Typing Logic) ---
   const handleInputChange = (e) => {
       setInputMessage(e.target.value);
-
       if (!ws || !activeRoom) return;
-
-      // 1. Notify server "I am typing"
-      ws.send(JSON.stringify({
-          type: "typing",
-          username: user.username
-      }));
-
-      // 2. Clear existing timeout
+      ws.send(JSON.stringify({ type: "typing", username: user.username }));
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-      // 3. Set new timeout to send "stop_typing" after 2 seconds of inactivity
       typingTimeoutRef.current = setTimeout(() => {
           ws.send(JSON.stringify({ type: "stop_typing" }));
       }, 2000);
@@ -227,11 +248,9 @@ const Chat = () => {
     e.preventDefault();
     if ((!inputMessage.trim() && !selectedFile) || !ws) return;
 
-    // --- Stop typing immediately when sending ---
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     ws.send(JSON.stringify({ type: "stop_typing" }));
 
-    // Edit Logic
     if (editingMessageId) {
         ws.send(JSON.stringify({ type: 'edit', message_id: editingMessageId, content: inputMessage }));
         setEditingMessageId(null);
@@ -239,7 +258,6 @@ const Chat = () => {
         return;
     }
 
-    // File Upload Logic
     let imageUrl = null;
     if (selectedFile) {
       const formData = new FormData();
@@ -250,7 +268,6 @@ const Chat = () => {
       } catch (err) { console.error(err); return; }
     }
 
-    // Send Message
     ws.send(JSON.stringify({ type: 'create', content: inputMessage, image_url: imageUrl }));
     setInputMessage('');
     setSelectedFile(null);
@@ -269,7 +286,6 @@ const Chat = () => {
       }
   };
 
-  // Search Handlers
   const handleSearch = async (e) => {
     e.preventDefault();
     try {
@@ -288,7 +304,6 @@ const Chat = () => {
 
   return (
     <div className="vh-100 d-flex flex-column overflow-hidden">
-      {/* Navbar */}
       <Navbar bg="primary" variant="dark" className="px-3" style={{ flexShrink: 0 }}>
         <Navbar.Brand>ChatSphere</Navbar.Brand>
         <Navbar.Toggle />
@@ -302,12 +317,8 @@ const Chat = () => {
 
       <Container fluid className="flex-grow-1 d-flex p-0" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
         <Row className="w-100 m-0 h-100">
-          
-          {/* Sidebar */}
           <Col md={3} className="border-end p-0 bg-light d-flex flex-column h-100">
             <div className="flex-grow-1 overflow-auto">
-                
-                {/* Groups Section */}
                 <div className="p-2 bg-white border-bottom">
                     <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Groups</h6>
                     <ListGroup variant="flush">
@@ -324,8 +335,6 @@ const Chat = () => {
                         {groups.length === 0 && <div className="text-muted small px-3">No groups yet</div>}
                     </ListGroup>
                 </div>
-
-                {/* Friends Section */}
                 <div className="p-2">
                     <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Direct Messages</h6>
                     <ListGroup variant="flush">
@@ -344,29 +353,42 @@ const Chat = () => {
             </div>
           </Col>
 
-          {/* Chat Area */}
           <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
             {activeRoom ? (
               <>
-                {/* Chat Header */}
                 <div className="p-3 border-bottom shadow-sm" style={{ flexShrink: 0 }}>
                   <h5 className="m-0">
                     {selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username}
                   </h5>
                 </div>
 
-                {/* Messages */}
                 <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
                   {messages.map((msg, idx) => {
                     const isMe = msg.sender_id === user.id;
                     const timeString = formatIndianTime(msg.updated_at || msg.created_at);
+                    
+                    // --- Check Read Status ---
+                    // Assuming 1-on-1 logic for Blue ticks: If read_by has > 0 people (who are not me)
+                    // For Groups: Ideally check if everyone read it, but for now check if anyone else read it.
+                    const hasRead = msg.read_by && msg.read_by.length > 0;
+                    const isSeen = hasRead; 
+
                     return (
                       <div key={idx} className={`d-flex mb-3 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
                         <div className={`p-3 rounded shadow-sm position-relative ${isMe ? 'bg-primary text-white' : 'bg-white border'}`} style={{ maxWidth: '70%' }}>
                           {msg.image_url && <Image src={msg.image_url} fluid rounded className="mb-2" style={{maxHeight:'200px'}} />}
                           <div>{msg.content}</div>
                           <div className={`d-flex justify-content-end align-items-center mt-1 small ${isMe ? 'text-white-50' : 'text-muted'}`}>
-                             <span className="me-2">{msg.updated_at && <span className="fst-italic me-1">(Edited)</span>}{timeString}</span>
+                             <span className="me-2">
+                                {msg.updated_at && <span className="fst-italic me-1">(Edited)</span>}
+                                {timeString}
+                                {/* Render Ticks for my messages */}
+                                {isMe && (
+                                    <span className="ms-1 fw-bold" style={{fontSize: '0.8rem'}}>
+                                        {isSeen ? <span className="text-info">✓✓</span> : <span>✓</span>}
+                                    </span>
+                                )}
+                             </span>
                              {isMe && (
                                <Dropdown drop="start">
                                  <Dropdown.Toggle as="div" bsPrefix="p-0" style={{cursor: 'pointer', lineHeight: 0}}>⋮</Dropdown.Toggle>
@@ -384,10 +406,7 @@ const Chat = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area */}
                 <div className="p-3 bg-light border-top" style={{ flexShrink: 0 }}>
-                  
-                  {/* --- NEW: Typing Indicator UI --- */}
                   {typingUsers.length > 0 && (
                       <div className="text-muted small mb-2 fst-italic ms-2" style={{height: '20px'}}>
                           {typingUsers.length === 1 
@@ -396,7 +415,6 @@ const Chat = () => {
                           }
                       </div>
                   )}
-
                   {editingMessageId && <div className="bg-warning-subtle p-2 mb-2 rounded small">Editing... <Button variant="link" size="sm" onClick={() => {setEditingMessageId(null); setInputMessage("")}}>Cancel</Button></div>}
                   {selectedFile && <div className="mb-2 small">{selectedFile.name} <Button variant="link" onClick={() => setSelectedFile(null)}>✕</Button></div>}
                   
@@ -404,13 +422,7 @@ const Chat = () => {
                     <InputGroup>
                       <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()} disabled={!!editingMessageId}>📎</Button>
                       <input type="file" ref={fileInputRef} style={{display:'none'}} onChange={handleFileChange} />
-                      
-                      {/* Updated Input to use handleInputChange */}
-                      <Form.Control 
-                        value={inputMessage} 
-                        onChange={handleInputChange} 
-                        placeholder="Type a message..." 
-                      />
+                      <Form.Control value={inputMessage} onChange={handleInputChange} placeholder="Type a message..." />
                       <Button variant={editingMessageId ? "success" : "primary"} type="submit">{editingMessageId ? "Update" : "Send"}</Button>
                     </InputGroup>
                   </Form>
@@ -423,31 +435,19 @@ const Chat = () => {
         </Row>
       </Container>
 
-      {/* Create Group Modal */}
       <Modal show={showCreateGroup} onHide={() => setShowCreateGroup(false)}>
         <Modal.Header closeButton><Modal.Title>Create New Group</Modal.Title></Modal.Header>
         <Modal.Body>
             <Form onSubmit={createGroup}>
                 <Form.Group className="mb-3">
                     <Form.Label>Group Name</Form.Label>
-                    <Form.Control 
-                        placeholder="e.g. Project Team" 
-                        value={newGroupName} 
-                        onChange={(e) => setNewGroupName(e.target.value)} 
-                        required 
-                    />
+                    <Form.Control placeholder="e.g. Project Team" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} required />
                 </Form.Group>
                 <Form.Group className="mb-3">
                     <Form.Label>Select Participants</Form.Label>
                     <div className="border rounded p-2" style={{maxHeight: '200px', overflowY: 'auto'}}>
                         {friends.map(friend => (
-                            <Form.Check 
-                                key={friend.id}
-                                type="checkbox"
-                                label={friend.username}
-                                checked={selectedGroupFriends.includes(friend.id)}
-                                onChange={() => handleGroupCheck(friend.id)}
-                            />
+                            <Form.Check key={friend.id} type="checkbox" label={friend.username} checked={selectedGroupFriends.includes(friend.id)} onChange={() => handleGroupCheck(friend.id)} />
                         ))}
                         {friends.length === 0 && <div className="text-muted small">Add friends first to create a group.</div>}
                     </div>
@@ -457,7 +457,6 @@ const Chat = () => {
         </Modal.Body>
       </Modal>
 
-      {/* Find Users Modal */}
       <Modal show={showSearch} onHide={() => setShowSearch(false)}>
         <Modal.Header closeButton><Modal.Title>Find Users</Modal.Title></Modal.Header>
         <Modal.Body>

@@ -16,6 +16,7 @@ class ChatMessageInDB(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     image_url: Optional[str] = None
+    read_by:List[str] = []
 
 
 class ChatRoomCreate(BaseModel):

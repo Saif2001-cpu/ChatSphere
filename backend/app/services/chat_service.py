@@ -9,7 +9,8 @@ from app.models.chat_model import (
     update_message,
     delete_message_from_db,
     get_message_by_id,
-    find_rooms_for_user
+    find_rooms_for_user,
+    mark_message_as_read
 )
 from app.schemas.chat_schema import ChatRoomInDB, ChatRoomCreate, ChatMessageInDB
 from fastapi import HTTPException
@@ -70,3 +71,7 @@ async def remove_message(message_id: str, user_id: str) -> bool:
     
     # 2. Delete
     return await delete_message_from_db(message_id)
+
+async def mark_msg_read(message_id: str, user_id: str) -> Optional[ChatMessageInDB]:
+    doc = await mark_message_as_read(message_id, user_id)
+    return ChatMessageInDB(**doc) if doc else None
