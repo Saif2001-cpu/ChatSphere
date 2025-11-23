@@ -1,4 +1,5 @@
-from typing import List
+from typing import List,Optional
+from fastapi import HTTPException
 
 from app.models.chat_model import (
     insert_room,
