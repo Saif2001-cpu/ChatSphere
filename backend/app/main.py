@@ -20,7 +20,8 @@ origins = [
     "http://localhost:5174",  # Local frontend
     "http://localhost:3000",  # Alternative local port
     "https://chatsphere-m3ynk0gjf-saif2001cpus-projects.vercel.app", # Your specific Vercel Deployment
-    "https://chatsphere.vercel.app" # Your main Vercel Domain (if you have one)
+    "https://chatsphere.vercel.app",
+      # Your main Vercel Domain (if you have one)
 ]
 
 app.add_middleware(
