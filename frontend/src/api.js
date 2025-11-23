@@ -1,7 +1,11 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000';
-export const WS_URL = 'ws://localhost:8000';
+// Use the environment variable if it exists (production), otherwise use localhost (development)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Automatically set the WebSocket URL based on the API URL
+// Replaces 'http' with 'ws' and 'https' with 'wss'
+export const WS_URL = API_URL.replace(/^http/, 'ws');
 
 const api = axios.create({
   baseURL: API_URL,
