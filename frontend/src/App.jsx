@@ -3,7 +3,8 @@ import { AuthProvider, AuthContext } from './context/AuthContext';
 import { useContext } from 'react';
 import Login from './components/Login';
 import Register from './components/Register';
-import Chat from './components/Chat';
+import ChatIndex from './components/Chat/ChatIndex'; 
+// The import above has been updated to use the new folder structure.
 
 // Protected Route Wrapper
 const PrivateRoute = ({ children }) => {
@@ -25,7 +26,7 @@ function App() {
             path="/" 
             element={
               <PrivateRoute>
-                <Chat />
+                <ChatIndex /> 
               </PrivateRoute>
             } 
           />

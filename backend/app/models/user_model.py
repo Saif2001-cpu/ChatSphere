@@ -13,6 +13,7 @@ def user_helper(doc: Dict[str, Any]) -> Dict[str, Any]:
         "username": doc["username"],
         "hashed_password": doc["hashed_password"],
         "friends": doc.get("friends", []),
+        "last_login_salt": doc.get("last_login_salt"),
     }
 
 
@@ -44,3 +45,18 @@ async def insert_user(email: str, username: str, hashed_password: str) -> Dict[s
     )
     new_doc = await col.find_one({"_id": result.inserted_id})
     return user_helper(new_doc)
+
+# --- NEW FUNCTION FOR SESSION MANAGEMENT ---
+async def update_last_login_salt(user_id: str):
+    """Generates a new salt/session ID and updates the user record."""
+    col = await get_user_collection()
+    new_salt = str(ObjectId())
+    
+    # We update the salt and return the updated document.
+    updated_doc = await col.find_one_and_update(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"last_login_salt": new_salt}},
+        return_document=True # Important: return the updated doc
+    )
+    
+    return user_helper(updated_doc) if updated_doc else None

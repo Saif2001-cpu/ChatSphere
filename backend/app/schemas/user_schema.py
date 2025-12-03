@@ -20,6 +20,7 @@ class UserInDB(UserBase):
     id: str
     hashed_password: str
     friends :list[str] = []
+    last_login_salt: Optional[str] = None
 
 
 class UserPublic(UserBase):

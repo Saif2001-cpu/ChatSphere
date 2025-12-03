@@ -1,6 +1,6 @@
 from typing import Optional
 
-from app.models.user_model import find_user_by_email, insert_user
+from app.models.user_model import find_user_by_email, insert_user,update_last_login_salt
 from app.utils.hashing import hash_password, verify_password
 from app.utils.jwt import create_access_token
 from app.schemas.user_schema import UserCreate, UserLogin, UserInDB, Token
@@ -29,5 +29,17 @@ async def login_user(user_in: UserLogin) -> Token:
     if not user:
         raise ValueError("Invalid email or password")
 
-    token = create_access_token({"sub": user.id})
+    # 1. Update the session salt (This invalidates all previous tokens)
+    updated_user_doc = await update_last_login_salt(user.id)
+    if not updated_user_doc:
+        # Should ideally not happen if authenticate_user succeeded
+        raise ValueError("Login failed due to user data update error")
+    
+    updated_user = UserInDB(**updated_user_doc)
+
+    # 2. Create the token with the user ID ("sub") AND the new salt ("lid")
+    token = create_access_token({
+        "sub": updated_user.id,
+        "lid": updated_user.last_login_salt # ADDED
+    })
     return Token(access_token=token)
