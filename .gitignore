@@ -1,108 +1,48 @@
-# Node dependencies
-node_modules/
-.pnp/
-.pnp.js
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-tmp/
-temp/
-
-# Build outputs
-dist/
+```
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
-.out/
-.vite/
-.public_build/
-storybook-static/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Next/Vercel/Nuxt/SvelteKit/etc.
-.next/
-.next/cache/
-.vercel/
-.nuxt/
-.svelte-kit/
-
-# Coverage
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
 coverage/
-coverage-final.json
-lcov-report/
 
-# Environment variables
+# Environment
 .env
-.env.*.local
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.envrc
+.env.*
+.venv/
+venv/
+ENV/
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDEs and editors
+# IDE
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.swp
-*~.nib
-*.iml
+*.swo
+*.tmp
 
-# TypeScript
-*.tsbuildinfo
-
-# Yarn modern
-.yarn/*
-!.yarn/releases/
-!.yarn/plugins/
-!.yarn/sdks/
-!.yarn/patches/
-.yarn/cache/
-.yarn/unplugged/
-
-# Package manager lockfiles (keep lockfiles if you prefer; uncomment to ignore)
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
-
-# Databases
-*.sqlite
-*.sqlite3
-*.db
-*.db-journal
-
-# Keys, certs, secrets
-*.pem
-*.key
-*.crt
-secrets/
-keypairs/
-
-# Docker
-docker-compose.override.yml
-.Dockerfile.swp
-
-# Misc
-*.local
-*.log.*
-.cache/
-.vagrant/
-coverage/
-
-.venv/
+# OS
+.DS_Store
+Thumbs.db
+```
