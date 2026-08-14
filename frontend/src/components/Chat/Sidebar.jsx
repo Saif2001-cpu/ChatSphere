@@ -2,7 +2,7 @@ import React from 'react';
 
 const getInitial = (name = '?') => name.trim().charAt(0).toUpperCase();
 
-const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFriend, onSelectGroup }) => (
+const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFriend, onSelectGroup, onCreateGroup, onFindUsers, onLogout }) => (
   <aside className="workspace-sidebar">
     <div>
       <div className="workspace-title">Acme Workspace</div>
@@ -13,18 +13,10 @@ const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFrien
       <h2 className="sidebar-section-title">CHANNELS</h2>
       <div className="sidebar-list">
         {groups.length > 0 ? groups.map((group) => (
-          <button
-            key={group.id}
-            type="button"
-            className={`sidebar-item ${selectedGroup?.id === group.id ? 'active' : ''}`}
-            onClick={() => onSelectGroup(group)}
-          >
-            <span aria-hidden="true">#</span>
-            <span>{group.name}</span>
+          <button key={group.id} type="button" className={`sidebar-item ${selectedGroup?.id === group.id ? 'active' : ''}`} onClick={() => onSelectGroup(group)}>
+            <span aria-hidden="true">#</span><span>{group.name}</span>
           </button>
-        )) : (
-          <div className="sidebar-item" style={{ cursor: 'default' }}># general</div>
-        )}
+        )) : <div className="sidebar-item" style={{ cursor: 'default' }}># general</div>}
       </div>
     </section>
 
@@ -32,26 +24,18 @@ const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFrien
       <h2 className="sidebar-section-title">DIRECT MESSAGES</h2>
       <div className="sidebar-list">
         {friends.length > 0 ? friends.map((friend) => (
-          <button
-            key={friend.id}
-            type="button"
-            className={`sidebar-item ${selectedFriend?.id === friend.id ? 'active' : ''}`}
-            onClick={() => onSelectFriend(friend)}
-          >
-            <span className="avatar sm" style={{ background: '#5878b8' }} aria-hidden="true">
-              {getInitial(friend.username)}
-            </span>
-            <span>{friend.username}</span>
-            <span className="presence" aria-label="online" />
+          <button key={friend.id} type="button" className={`sidebar-item ${selectedFriend?.id === friend.id ? 'active' : ''}`} onClick={() => onSelectFriend(friend)}>
+            <span className="avatar sm" style={{ background: '#5878b8' }} aria-hidden="true">{getInitial(friend.username)}</span>
+            <span>{friend.username}</span><span className="presence" aria-label="online" />
           </button>
-        )) : (
-          <div className="sidebar-item" style={{ cursor: 'default' }}>No direct messages yet</div>
-        )}
+        )) : <div className="sidebar-item" style={{ cursor: 'default' }}>No direct messages yet</div>}
       </div>
     </section>
 
     <div className="sidebar-footer">
-      <button type="button" className="sidebar-action">Help &amp; settings</button>
+      <button type="button" className="sidebar-action" onClick={onCreateGroup}>+ Create group</button>
+      <button type="button" className="sidebar-action" style={{ marginTop: 12 }} onClick={onFindUsers}>Find users</button>
+      <button type="button" className="sidebar-action" style={{ marginTop: 12 }} onClick={onLogout}>Log out</button>
     </div>
   </aside>
 );
