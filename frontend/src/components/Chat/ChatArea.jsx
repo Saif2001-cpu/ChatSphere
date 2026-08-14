@@ -1,7 +1,7 @@
 import React from 'react';
-import { Col, Form, InputGroup, Button, Image, Dropdown } from 'react-bootstrap';
 
-// This component receives message handlers and data as props
+const getInitial = (name = '?') => name.trim().charAt(0).toUpperCase();
+
 const ChatArea = ({
   activeRoom,
   selectedFriend,
@@ -24,93 +24,127 @@ const ChatArea = ({
   setInputMessage,
   setSelectedFile,
 }) => {
-
   if (!activeRoom) {
     return (
-      <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
-        <div className="d-flex align-items-center justify-content-center h-100 text-muted">
-          <h4>Select a chat to start</h4>
-        </div>
-      </Col>
+      <main className="chat-main">
+        <div className="empty-chat">Select a conversation to get started</div>
+      </main>
     );
   }
 
-  return (
-    <Col md={9} className="p-0 d-flex flex-column bg-white h-100">
-      {/* Chat Header */}
-      <div className="p-3 border-bottom shadow-sm" style={{ flexShrink: 0 }}>
-        <h5 className="m-0">
-          {selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username}
-        </h5>
-      </div>
+  const title = selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username || 'Conversation';
+  const description = selectedGroup ? 'Project discussion and updates' : 'Direct message';
 
-      {/* Messages */}
-      <div className="flex-grow-1 p-4 overflow-auto" style={{ backgroundColor: '#f8f9fa' }}>
+  return (
+    <main className="chat-main">
+      <header className="chat-header">
+        <div className="chat-heading">
+          <h1 className="chat-title">{title}</h1>
+          <span className="chat-description">{description}</span>
+        </div>
+        <div className="chat-actions">
+          <button type="button" className="icon-btn" aria-label="Favorite">☆</button>
+          <button type="button" className="icon-btn" aria-label="Conversation info">ⓘ</button>
+          <button type="button" className="icon-btn" aria-label="More actions">⋯</button>
+        </div>
+      </header>
+
+      <section className="message-area" aria-label="Messages">
+        <div className="date-divider">TODAY</div>
+
         {messages.map((msg, idx) => {
           const isMe = msg.sender_id === user.id;
+          const senderName = isMe ? user.username : (selectedFriend?.username || 'Member');
           const timeString = formatIndianTime(msg.updated_at || msg.created_at);
-          
-          const hasRead = msg.read_by && msg.read_by.length > 0;
-          const isSeen = hasRead; 
+          const isSeen = Boolean(msg.read_by?.length);
 
           return (
-            <div key={idx} className={`d-flex mb-3 ${isMe ? 'justify-content-end' : 'justify-content-start'}`}>
-              <div className={`p-3 rounded shadow-sm position-relative ${isMe ? 'bg-primary text-white' : 'bg-white border'}`} style={{ maxWidth: '70%' }}>
-                {msg.image_url && <Image src={msg.image_url} fluid rounded className="mb-2" style={{maxHeight:'200px'}} />}
-                <div>{msg.content}</div>
-                <div className={`d-flex justify-content-end align-items-center mt-1 small ${isMe ? 'text-white-50' : 'text-muted'}`}>
-                   <span className="me-2">
-                      {msg.updated_at && <span className="fst-italic me-1">(Edited)</span>}
-                      {timeString}
-                      {isMe && (
-                          <span className="ms-1 fw-bold" style={{fontSize: '0.8rem'}}>
-                              {isSeen ? <span className="text-info">✓✓</span> : <span>✓</span>}
-                          </span>
-                      )}
-                   </span>
-                   {isMe && (
-                      <Dropdown drop="start">
-                        <Dropdown.Toggle as="div" bsPrefix="p-0" style={{cursor: 'pointer', lineHeight: 0}}>⋮</Dropdown.Toggle>
-                        <Dropdown.Menu size="sm">
-                          <Dropdown.Item onClick={() => startEditing(msg)}>Edit</Dropdown.Item>
-                          <Dropdown.Item onClick={() => deleteMessage(msg.id)} className="text-danger">Delete</Dropdown.Item>
-                        </Dropdown.Menu>
-                      </Dropdown>
-                   )}
+            <article key={msg.id || idx} className={`message-row ${isMe ? 'outgoing' : ''}`}>
+              {!isMe && (
+                <span className="avatar md" style={{ background: '#5878b8' }} aria-hidden="true">
+                  {getInitial(senderName)}
+                </span>
+              )}
+
+              <div className="message-content">
+                <div className="message-meta" style={isMe ? { justifyContent: 'flex-end' } : undefined}>
+                  <span className="message-author">{senderName}</span>
+                  <span className="message-time">{timeString}</span>
                 </div>
+
+                <div className="message-bubble">
+                  {msg.image_url && <img src={msg.image_url} alt="Attachment" className="message-image" />}
+                  {msg.content && <div>{msg.content}</div>}
+                  {isMe && (
+                    <div className="message-status">
+                      {msg.updated_at ? 'Edited · ' : ''}{timeString} {isSeen ? '✓✓' : '✓'}
+                      <button
+                        type="button"
+                        className="message-menu"
+                        aria-label="Message actions"
+                        onClick={() => startEditing(msg)}
+                        title="Edit message"
+                      >⋯</button>
+                    </div>
+                  )}
+                </div>
+
+                {isMe && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                    <button type="button" className="link-btn" onClick={() => startEditing(msg)}>Edit</button>
+                    <button type="button" className="link-btn" style={{ marginLeft: 10 }} onClick={() => deleteMessage(msg.id)}>Delete</button>
+                  </div>
+                )}
               </div>
-            </div>
+            </article>
           );
         })}
         <div ref={messagesEndRef} />
-      </div>
+      </section>
 
-      {/* Input Area */}
-      <div className="p-3 bg-light border-top" style={{ flexShrink: 0 }}>
-        
-        {/* Typing Indicator */}
+      <footer className="composer">
         {typingUsers.length > 0 && (
-            <div className="text-muted small mb-2 fst-italic ms-2" style={{height: '20px'}}>
-                {typingUsers.length === 1 
-                    ? `${typingUsers[0].username} is typing...`
-                    : `${typingUsers.length} people are typing...`
-                }
-            </div>
+          <div className="composer-notice">
+            {typingUsers.length === 1 ? `${typingUsers[0].username} is typing…` : `${typingUsers.length} people are typing…`}
+          </div>
         )}
 
-        {editingMessageId && <div className="bg-warning-subtle p-2 mb-2 rounded small">Editing... <Button variant="link" size="sm" onClick={() => {setEditingMessageId(null); setInputMessage("")}}>Cancel</Button></div>}
-        {selectedFile && <div className="mb-2 small">{selectedFile.name} <Button variant="link" onClick={() => setSelectedFile(null)}>✕</Button></div>}
-        
-        <Form onSubmit={handleSendMessage}>
-          <InputGroup>
-            <Button variant="outline-secondary" onClick={() => fileInputRef.current.click()} disabled={!!editingMessageId}>📎</Button>
-            <input type="file" ref={fileInputRef} style={{display:'none'}} onChange={handleFileChange} />
-            <Form.Control value={inputMessage} onChange={handleInputChange} placeholder="Type a message..." />
-            <Button variant={editingMessageId ? "success" : "primary"} type="submit">{editingMessageId ? "Update" : "Send"}</Button>
-          </InputGroup>
-        </Form>
-      </div>
-    </Col>
+        {editingMessageId && (
+          <div className="editing-bar">
+            Editing message
+            <button type="button" className="link-btn" onClick={() => { setEditingMessageId(null); setInputMessage(''); }}>Cancel</button>
+          </div>
+        )}
+        {selectedFile && (
+          <div className="file-bar">
+            {selectedFile.name}
+            <button type="button" className="link-btn" onClick={() => setSelectedFile(null)}>Remove</button>
+          </div>
+        )}
+
+        <form className="composer-form" onSubmit={handleSendMessage}>
+          <button
+            type="button"
+            className="attach-btn"
+            aria-label="Attach file"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={Boolean(editingMessageId)}
+          >+
+          </button>
+          <input ref={fileInputRef} type="file" hidden onChange={handleFileChange} />
+          <input
+            className="composer-input"
+            value={inputMessage}
+            onChange={handleInputChange}
+            placeholder={`Message ${title}…`}
+            aria-label="Message"
+          />
+          <button type="submit" className="send-btn" disabled={!inputMessage.trim() && !selectedFile}>
+            {editingMessageId ? 'Update' : 'Send'}
+          </button>
+        </form>
+      </footer>
+    </main>
   );
 };
 
