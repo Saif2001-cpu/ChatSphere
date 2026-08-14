@@ -1,48 +1,59 @@
 import React from 'react';
-import { Col, ListGroup } from 'react-bootstrap';
 
-const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFriend, onSelectGroup }) => {
-  return (
-    <Col md={3} className="border-end p-0 bg-light d-flex flex-column h-100">
-      <div className="flex-grow-1 overflow-auto">
-          
-          {/* Groups Section */}
-          <div className="p-2 bg-white border-bottom">
-              <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Groups</h6>
-              <ListGroup variant="flush">
-                  {groups.map(grp => (
-                      <ListGroup.Item 
-                          key={grp.id} action 
-                          active={selectedGroup?.id === grp.id}
-                          onClick={() => onSelectGroup(grp)}
-                          className="border-0 rounded mb-1 py-2"
-                      >
-                          <strong># {grp.name}</strong>
-                      </ListGroup.Item>
-                  ))}
-                  {groups.length === 0 && <div className="text-muted small px-3">No groups yet</div>}
-              </ListGroup>
-          </div>
+const getInitial = (name = '?') => name.trim().charAt(0).toUpperCase();
 
-          {/* Friends Section */}
-          <div className="p-2">
-              <h6 className="text-muted mb-2 px-2 text-uppercase small fw-bold">Direct Messages</h6>
-              <ListGroup variant="flush">
-                  {friends.map(friend => (
-                      <ListGroup.Item 
-                          key={friend.id} action 
-                          active={selectedFriend?.id === friend.id}
-                          onClick={() => onSelectFriend(friend)}
-                          className="border-0 rounded mb-1 py-2"
-                      >
-                          {friend.username}
-                      </ListGroup.Item>
-                  ))}
-              </ListGroup>
-          </div>
+const Sidebar = ({ friends, groups, selectedFriend, selectedGroup, onSelectFriend, onSelectGroup }) => (
+  <aside className="workspace-sidebar">
+    <div>
+      <div className="workspace-title">Acme Workspace</div>
+      <div className="workspace-subtitle">Team collaboration</div>
+    </div>
+
+    <section className="sidebar-section">
+      <h2 className="sidebar-section-title">CHANNELS</h2>
+      <div className="sidebar-list">
+        {groups.length > 0 ? groups.map((group) => (
+          <button
+            key={group.id}
+            type="button"
+            className={`sidebar-item ${selectedGroup?.id === group.id ? 'active' : ''}`}
+            onClick={() => onSelectGroup(group)}
+          >
+            <span aria-hidden="true">#</span>
+            <span>{group.name}</span>
+          </button>
+        )) : (
+          <div className="sidebar-item" style={{ cursor: 'default' }}># general</div>
+        )}
       </div>
-    </Col>
-  );
-};
+    </section>
+
+    <section className="sidebar-section">
+      <h2 className="sidebar-section-title">DIRECT MESSAGES</h2>
+      <div className="sidebar-list">
+        {friends.length > 0 ? friends.map((friend) => (
+          <button
+            key={friend.id}
+            type="button"
+            className={`sidebar-item ${selectedFriend?.id === friend.id ? 'active' : ''}`}
+            onClick={() => onSelectFriend(friend)}
+          >
+            <span className="avatar sm" style={{ background: '#5878b8' }} aria-hidden="true">
+              {getInitial(friend.username)}
+            </span>
+            <span>{friend.username}</span>
+            <span className="presence" aria-label="online" />
+          </button>
+        )) : (
+          <div className="sidebar-item" style={{ cursor: 'default' }}>No direct messages yet</div>
+        )}
+      </div>
+    </section>
+
+    <div className="sidebar-footer">
+      <button type="button" className="sidebar-action">Help &amp; settings</button>
+    </div>
+  </aside>
+);
 
 export default Sidebar;
