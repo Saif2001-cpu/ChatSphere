@@ -11,11 +11,14 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; min-width: 320px; height: 100%; margin: 0; }
+html, body, #root { width: 100%; min-width: 0; height: 100%; min-height: 100%; margin: 0; }
 body { overflow: hidden; background: #f5f7fa; }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
+img, svg { max-width: 100%; }
 
-@media (max-width: 768px) {
-  body { overflow: auto; }
+.app-loading { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+
+@media (max-width: 760px) {
+  html, body, #root { width: 100%; min-width: 0; height: 100%; overflow: hidden; }
 }
