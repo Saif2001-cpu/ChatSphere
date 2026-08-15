@@ -102,7 +102,7 @@ const ChatIndex = () => {
         <label className="global-search"><span className="search-icon" aria-hidden="true">⌕</span><input type="search" placeholder="Search conversations, people, or files" aria-label="Global search" /></label>
         <div className="header-user"><span className="header-user-name">{user?.username}</span><span className="avatar md" style={{ background: '#2e528f' }}>{user?.username?.charAt(0).toUpperCase() || 'X'}</span></div>
       </header>
-      <div className="workspace">
+      <div className={`workspace ${activeRoom ? 'has-active-room' : 'no-active-room'}`}>
         <Sidebar friends={friends} groups={groups} selectedFriend={selectedFriend} selectedGroup={selectedGroup} onSelectFriend={handleSelectFriend} onSelectGroup={handleSelectGroup} onCreateGroup={() => setShowCreateGroup(true)} onFindUsers={() => setShowSearch(true)} onLogout={logout} />
         <ChatArea activeRoom={activeRoom} selectedFriend={selectedFriend} selectedGroup={selectedGroup} messages={messages} user={user} typingUsers={typingUsers} inputMessage={inputMessage} editingMessageId={editingMessageId} selectedFile={selectedFile} messagesEndRef={messagesEndRef} fileInputRef={fileInputRef} formatIndianTime={formatIndianTime} handleInputChange={handleInputChange} handleFileChange={handleFileChange} handleSendMessage={handleSendMessage} startEditing={startEditing} deleteMessage={deleteMessage} setEditingMessageId={setEditingMessageId} setInputMessage={setInputMessage} setSelectedFile={setSelectedFile} />
       </div>
