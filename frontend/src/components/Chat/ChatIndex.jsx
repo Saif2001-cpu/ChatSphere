@@ -94,6 +94,7 @@ const ChatIndex = () => {
   };
   const startEditing = (msg) => { setEditingMessageId(msg.id); setInputMessage(msg.content || ''); setSelectedFile(null); };
   const deleteMessage = (msgId) => { if (window.confirm('Delete this message?')) ws.send(JSON.stringify({ type: 'delete', message_id: msgId })); };
+  const closeMobileChat = () => { setActiveRoom(null); setSelectedFriend(null); setSelectedGroup(null); setMessages([]); setTypingUsers([]); setEditingMessageId(null); setInputMessage(''); setSelectedFile(null); };
 
   return (
     <div className="chat-app">
@@ -104,7 +105,7 @@ const ChatIndex = () => {
       </header>
       <div className={`workspace ${activeRoom ? 'has-active-room' : 'no-active-room'}`}>
         <Sidebar friends={friends} groups={groups} selectedFriend={selectedFriend} selectedGroup={selectedGroup} onSelectFriend={handleSelectFriend} onSelectGroup={handleSelectGroup} onCreateGroup={() => setShowCreateGroup(true)} onFindUsers={() => setShowSearch(true)} onLogout={logout} />
-        <ChatArea activeRoom={activeRoom} selectedFriend={selectedFriend} selectedGroup={selectedGroup} messages={messages} user={user} typingUsers={typingUsers} inputMessage={inputMessage} editingMessageId={editingMessageId} selectedFile={selectedFile} messagesEndRef={messagesEndRef} fileInputRef={fileInputRef} formatIndianTime={formatIndianTime} handleInputChange={handleInputChange} handleFileChange={handleFileChange} handleSendMessage={handleSendMessage} startEditing={startEditing} deleteMessage={deleteMessage} setEditingMessageId={setEditingMessageId} setInputMessage={setInputMessage} setSelectedFile={setSelectedFile} />
+        <ChatArea activeRoom={activeRoom} selectedFriend={selectedFriend} selectedGroup={selectedGroup} messages={messages} user={user} typingUsers={typingUsers} inputMessage={inputMessage} editingMessageId={editingMessageId} selectedFile={selectedFile} messagesEndRef={messagesEndRef} fileInputRef={fileInputRef} formatIndianTime={formatIndianTime} handleInputChange={handleInputChange} handleFileChange={handleFileChange} handleSendMessage={handleSendMessage} startEditing={startEditing} deleteMessage={deleteMessage} setEditingMessageId={setEditingMessageId} setInputMessage={setInputMessage} setSelectedFile={setSelectedFile} onMobileBack={closeMobileChat} />
       </div>
       <CreateGroupModal show={showCreateGroup} onHide={() => setShowCreateGroup(false)} friends={friends} newGroupName={newGroupName} setNewGroupName={setNewGroupName} selectedGroupFriends={selectedGroupFriends} handleGroupCheck={handleGroupCheck} createGroup={createGroup} />
       <FindUsersModal show={showSearch} onHide={() => setShowSearch(false)} user={user} friends={friends} searchQuery={searchQuery} setSearchQuery={setSearchQuery} searchResults={searchResults} setSearchResults={setSearchResults} fetchFriends={fetchFriends} addFriend={addFriend} removeFriend={removeFriend} />
