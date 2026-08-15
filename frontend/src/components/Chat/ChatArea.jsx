@@ -23,11 +23,17 @@ const ChatArea = ({
   setEditingMessageId,
   setInputMessage,
   setSelectedFile,
+  onMobileBack,
 }) => {
   if (!activeRoom) {
     return (
-      <main className="chat-main">
-        <div className="empty-chat">Select a conversation to get started</div>
+      <main className="chat-main chat-empty-state">
+        <div className="empty-chat">
+          <div>
+            <strong>Select a conversation</strong>
+            <span>Choose a chat from your messages to get started.</span>
+          </div>
+        </div>
       </main>
     );
   }
@@ -38,9 +44,13 @@ const ChatArea = ({
   return (
     <main className="chat-main">
       <header className="chat-header">
+        <button type="button" className="mobile-back-btn" aria-label="Back to conversations" onClick={onMobileBack}>‹</button>
         <div className="chat-heading">
-          <h1 className="chat-title">{title}</h1>
-          <span className="chat-description">{description}</span>
+          <div className="chat-peer-avatar avatar sm" aria-hidden="true">{selectedGroup ? '#' : getInitial(selectedFriend?.username || 'C')}</div>
+          <div className="chat-heading-copy">
+            <h1 className="chat-title">{title}</h1>
+            <span className="chat-description">{description}</span>
+          </div>
         </div>
         <div className="chat-actions">
           <button type="button" className="icon-btn" aria-label="Favorite">☆</button>
@@ -50,7 +60,7 @@ const ChatArea = ({
       </header>
 
       <section className="message-area" aria-label="Messages">
-        <div className="date-divider">TODAY</div>
+        <div className="date-divider"><span>TODAY</span></div>
 
         {messages.map((msg, idx) => {
           const isMe = msg.sender_id === user.id;
@@ -61,7 +71,7 @@ const ChatArea = ({
           return (
             <article key={msg.id || idx} className={`message-row ${isMe ? 'outgoing' : ''}`}>
               {!isMe && (
-                <span className="avatar md" style={{ background: '#5878b8' }} aria-hidden="true">
+                <span className="avatar md message-avatar" aria-hidden="true">
                   {getInitial(senderName)}
                 </span>
               )}
@@ -78,21 +88,15 @@ const ChatArea = ({
                   {isMe && (
                     <div className="message-status">
                       {msg.updated_at ? 'Edited · ' : ''}{timeString} {isSeen ? '✓✓' : '✓'}
-                      <button
-                        type="button"
-                        className="message-menu"
-                        aria-label="Message actions"
-                        onClick={() => startEditing(msg)}
-                        title="Edit message"
-                      >⋯</button>
+                      <button type="button" className="message-menu" aria-label="Message actions" onClick={() => startEditing(msg)} title="Edit message">⋯</button>
                     </div>
                   )}
                 </div>
 
                 {isMe && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <div className="message-actions">
                     <button type="button" className="link-btn" onClick={() => startEditing(msg)}>Edit</button>
-                    <button type="button" className="link-btn" style={{ marginLeft: 10 }} onClick={() => deleteMessage(msg.id)}>Delete</button>
+                    <button type="button" className="link-btn" onClick={() => deleteMessage(msg.id)}>Delete</button>
                   </div>
                 )}
               </div>
@@ -111,34 +115,21 @@ const ChatArea = ({
 
         {editingMessageId && (
           <div className="editing-bar">
-            Editing message
+            <span>Editing message</span>
             <button type="button" className="link-btn" onClick={() => { setEditingMessageId(null); setInputMessage(''); }}>Cancel</button>
           </div>
         )}
         {selectedFile && (
           <div className="file-bar">
-            {selectedFile.name}
+            <span>{selectedFile.name}</span>
             <button type="button" className="link-btn" onClick={() => setSelectedFile(null)}>Remove</button>
           </div>
         )}
 
         <form className="composer-form" onSubmit={handleSendMessage}>
-          <button
-            type="button"
-            className="attach-btn"
-            aria-label="Attach file"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={Boolean(editingMessageId)}
-          >+
-          </button>
+          <button type="button" className="attach-btn" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={Boolean(editingMessageId)}>+</button>
           <input ref={fileInputRef} type="file" hidden onChange={handleFileChange} />
-          <input
-            className="composer-input"
-            value={inputMessage}
-            onChange={handleInputChange}
-            placeholder={`Message ${title}…`}
-            aria-label="Message"
-          />
+          <input className="composer-input" value={inputMessage} onChange={handleInputChange} placeholder={`Message ${title}…`} aria-label="Message" />
           <button type="submit" className="send-btn" disabled={!inputMessage.trim() && !selectedFile}>
             {editingMessageId ? 'Update' : 'Send'}
           </button>
