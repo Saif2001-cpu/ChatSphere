@@ -243,3 +243,25 @@
   .workspace { grid-template-columns: 240px minmax(0, 1fr); }
   .message-content { max-width: 78%; }
 }
+
+
+/* Power chat: theme, reactions, and saved-message affordances */
+.theme-toggle { width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--ink); }
+.theme-toggle:hover { background: #f2f4f7; }
+.message-enhancements { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.outgoing .message-enhancements { justify-content: flex-end; }
+.reaction-tray { display: flex; gap: 4px; flex-wrap: wrap; }
+.reaction-button, .save-button { border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--muted); font-size: 12px; line-height: 1; padding: 5px 8px; }
+.reaction-button:hover, .reaction-button.reacted { border-color: #8fb6f7; background: #eaf2ff; color: #146cf5; }
+.reaction-button span { margin-left: 3px; font-weight: 700; }
+.save-button.saved { color: #8a5b00; border-color: #f0c36e; background: #fff7df; }
+.theme-dark { --ink: #eef4ff; --muted: #aab7cd; --border: #2a3a53; --surface: #152238; --canvas: #0b1321; --sidebar: #0a101b; --sidebar-text: #f7f9fc; --sidebar-muted: #a8b0bf; --primary: #4f8cff; --primary-hover: #77a8ff; }
+.theme-dark .app-header, .theme-dark .chat-header, .theme-dark .composer { background: #152238; }
+.theme-dark .message-area { background: #0d1727; }
+.theme-dark .global-search input, .theme-dark .composer-input, .theme-dark .attach-btn, .theme-dark .theme-toggle, .theme-dark .reaction-button, .theme-dark .save-button, .theme-dark .message-bubble { background: #1b2a42; color: var(--ink); }
+.theme-dark .icon-btn { color: var(--muted); }
+.theme-dark .icon-btn:hover, .theme-dark .theme-toggle:hover { background: #263a59; color: #fff; }
+.theme-dark .outgoing .message-bubble { background: var(--primary); border-color: var(--primary); }
+.theme-dark .reaction-button:hover, .theme-dark .reaction-button.reacted { background: #233c66; color: #bcd3ff; }
+.theme-dark .save-button.saved { background: #453b20; color: #ffe9a8; }
+@media (max-width: 600px) { .theme-toggle { width: 34px; height: 34px; } .message-enhancements { gap: 5px; } .reaction-button { padding: 4px 6px; } }
