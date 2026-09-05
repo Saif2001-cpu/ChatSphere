@@ -1,5 +1,7 @@
 import React from 'react';
 
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '🔥'];
+
 const getInitial = (name = '?') => name.trim().charAt(0).toUpperCase();
 
 const ChatArea = ({
@@ -23,6 +25,11 @@ const ChatArea = ({
   setEditingMessageId,
   setInputMessage,
   setSelectedFile,
+  reactions,
+  onToggleReaction,
+  savedMessageIds,
+  onToggleSaved,
+  searchQuery,
 }) => {
   if (!activeRoom) {
     return (
@@ -34,6 +41,7 @@ const ChatArea = ({
 
   const title = selectedGroup ? `# ${selectedGroup.name}` : selectedFriend?.username || 'Conversation';
   const description = selectedGroup ? 'Project discussion and updates' : 'Direct message';
+  const visibleMessages = messages.filter((message) => message.content?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <main className="chat-main">
@@ -43,7 +51,7 @@ const ChatArea = ({
           <span className="chat-description">{description}</span>
         </div>
         <div className="chat-actions">
-          <button type="button" className="icon-btn" aria-label="Favorite">☆</button>
+          <button type="button" className="icon-btn" aria-label="Saved messages" title="Saved messages">🔖{savedMessageIds.length ? <sup>{savedMessageIds.length}</sup> : null}</button>
           <button type="button" className="icon-btn" aria-label="Conversation info">ⓘ</button>
           <button type="button" className="icon-btn" aria-label="More actions">⋯</button>
         </div>
@@ -52,7 +60,8 @@ const ChatArea = ({
       <section className="message-area" aria-label="Messages">
         <div className="date-divider">TODAY</div>
 
-        {messages.map((msg, idx) => {
+        {visibleMessages.length === 0 && <div className="empty-chat">No messages match your search.</div>}
+        {visibleMessages.map((msg, idx) => {
           const isMe = msg.sender_id === user.id;
           const senderName = isMe ? user.username : (selectedFriend?.username || 'Member');
           const timeString = formatIndianTime(msg.updated_at || msg.created_at);
@@ -87,6 +96,13 @@ const ChatArea = ({
                       >⋯</button>
                     </div>
                   )}
+                </div>
+
+                <div className="message-enhancements">
+                  <div className="reaction-tray" aria-label="Add reaction">
+                    {QUICK_REACTIONS.map((emoji) => <button type="button" className={`reaction-button ${reactions[msg.id]?.[emoji]?.includes(user.id) ? 'reacted' : ''}`} key={emoji} onClick={() => onToggleReaction(msg.id, emoji)} aria-label={`React with ${emoji}`}>{emoji}{reactions[msg.id]?.[emoji]?.length ? <span>{reactions[msg.id][emoji].length}</span> : null}</button>)}
+                  </div>
+                  <button type="button" className={`save-button ${savedMessageIds.includes(msg.id) ? 'saved' : ''}`} onClick={() => onToggleSaved(msg.id)} aria-label="Save message" title="Save message">{savedMessageIds.includes(msg.id) ? '🔖 Saved' : '🔖 Save'}</button>
                 </div>
 
                 {isMe && (

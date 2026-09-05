@@ -11,6 +11,8 @@ const formatIndianTime = (dateString) => {
   return new Date(dateString).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
+const PREFERENCES_KEY = 'chatsphere-power-chat';
+
 const ChatIndex = () => {
   const { user, token, logout } = useContext(AuthContext);
   const [friends, setFriends] = useState([]), [groups, setGroups] = useState([]), [activeRoom, setActiveRoom] = useState(null), [messages, setMessages] = useState([]);
@@ -19,9 +21,47 @@ const ChatIndex = () => {
   const [newGroupName, setNewGroupName] = useState(''), [selectedGroupFriends, setSelectedGroupFriends] = useState([]);
   const [ws, setWs] = useState(null), [typingUsers, setTypingUsers] = useState([]), [searchQuery, setSearchQuery] = useState(''), [searchResults, setSearchResults] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null), [editingMessageId, setEditingMessageId] = useState(null);
+  const [theme, setTheme] = useState('light'), [savedMessageIds, setSavedMessageIds] = useState([]), [reactions, setReactions] = useState({}), [globalSearch, setGlobalSearch] = useState('');
   const fileInputRef = useRef(null), messagesEndRef = useRef(null), typingTimeoutRef = useRef(null);
 
   useEffect(() => { fetchFriends(); fetchGroups(); }, []);
+
+  useEffect(() => {
+    try {
+      const preferences = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || '{}');
+      setTheme(preferences.theme || 'light');
+      setSavedMessageIds(preferences.savedMessageIds || []);
+      setReactions(preferences.reactions || {});
+    } catch { /* preferences are optional */ }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify({ theme, savedMessageIds, reactions }));
+  }, [theme, savedMessageIds, reactions]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        document.querySelector('#globalChatSearch')?.focus();
+      }
+      if (event.key === 'Escape') setGlobalSearch('');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const toggleReaction = (messageId, emoji) => {
+    setReactions((previous) => {
+      const next = { ...previous, [messageId]: { ...(previous[messageId] || {}) } };
+      const people = next[messageId][emoji] || [];
+      next[messageId][emoji] = people.includes(user.id) ? people.filter((id) => id !== user.id) : [...people, user.id];
+      if (!next[messageId][emoji].length) delete next[messageId][emoji];
+      if (!Object.keys(next[messageId]).length) delete next[messageId];
+      return next;
+    });
+  };
+  const toggleSaved = (messageId) => setSavedMessageIds((previous) => previous.includes(messageId) ? previous.filter((id) => id !== messageId) : [...previous, messageId]);
 
   const fetchFriends = async () => {
     try { const res = await api.get('/users/friends'); if (!res.data.length) return setFriends([]); const all = await api.get('/users/'); setFriends(all.data.filter((u) => res.data.includes(u.id))); }
@@ -97,15 +137,16 @@ const ChatIndex = () => {
   const closeMobileChat = () => { setActiveRoom(null); setSelectedFriend(null); setSelectedGroup(null); setMessages([]); setTypingUsers([]); setEditingMessageId(null); setInputMessage(''); setSelectedFile(null); };
 
   return (
-    <div className="chat-app">
+    <div className={`chat-app theme-${theme}`}>
       <header className="app-header">
         <div className="brand">ChatSphere</div>
-        <label className="global-search"><span className="search-icon" aria-hidden="true">⌕</span><input type="search" placeholder="Search conversations, people, or files" aria-label="Global search" /></label>
+        <label className="global-search"><span className="search-icon" aria-hidden="true">⌕</span><input id="globalChatSearch" type="search" value={globalSearch} onChange={(event) => setGlobalSearch(event.target.value)} placeholder="Search this conversation · ⌘K" aria-label="Search this conversation" /></label>
+        <button type="button" className="theme-toggle" onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} aria-label="Toggle color theme" title="Toggle color theme">{theme === 'light' ? '🌙' : '☀️'}</button>
         <div className="header-user"><span className="header-user-name">{user?.username}</span><span className="avatar md" style={{ background: '#2e528f' }}>{user?.username?.charAt(0).toUpperCase() || 'X'}</span></div>
       </header>
       <div className={`workspace ${activeRoom ? 'has-active-room' : 'no-active-room'}`}>
         <Sidebar friends={friends} groups={groups} selectedFriend={selectedFriend} selectedGroup={selectedGroup} onSelectFriend={handleSelectFriend} onSelectGroup={handleSelectGroup} onCreateGroup={() => setShowCreateGroup(true)} onFindUsers={() => setShowSearch(true)} onLogout={logout} />
-        <ChatArea activeRoom={activeRoom} selectedFriend={selectedFriend} selectedGroup={selectedGroup} messages={messages} user={user} typingUsers={typingUsers} inputMessage={inputMessage} editingMessageId={editingMessageId} selectedFile={selectedFile} messagesEndRef={messagesEndRef} fileInputRef={fileInputRef} formatIndianTime={formatIndianTime} handleInputChange={handleInputChange} handleFileChange={handleFileChange} handleSendMessage={handleSendMessage} startEditing={startEditing} deleteMessage={deleteMessage} setEditingMessageId={setEditingMessageId} setInputMessage={setInputMessage} setSelectedFile={setSelectedFile} onMobileBack={closeMobileChat} />
+        <ChatArea activeRoom={activeRoom} selectedFriend={selectedFriend} selectedGroup={selectedGroup} messages={messages} user={user} typingUsers={typingUsers} inputMessage={inputMessage} editingMessageId={editingMessageId} selectedFile={selectedFile} messagesEndRef={messagesEndRef} fileInputRef={fileInputRef} formatIndianTime={formatIndianTime} handleInputChange={handleInputChange} handleFileChange={handleFileChange} handleSendMessage={handleSendMessage} startEditing={startEditing} deleteMessage={deleteMessage} setEditingMessageId={setEditingMessageId} setInputMessage={setInputMessage} setSelectedFile={setSelectedFile} reactions={reactions} onToggleReaction={toggleReaction} savedMessageIds={savedMessageIds} onToggleSaved={toggleSaved} searchQuery={globalSearch} onMobileBack={closeMobileChat} />
       </div>
       <CreateGroupModal show={showCreateGroup} onHide={() => setShowCreateGroup(false)} friends={friends} newGroupName={newGroupName} setNewGroupName={setNewGroupName} selectedGroupFriends={selectedGroupFriends} handleGroupCheck={handleGroupCheck} createGroup={createGroup} />
       <FindUsersModal show={showSearch} onHide={() => setShowSearch(false)} user={user} friends={friends} searchQuery={searchQuery} setSearchQuery={setSearchQuery} searchResults={searchResults} setSearchResults={setSearchResults} fetchFriends={fetchFriends} addFriend={addFriend} removeFriend={removeFriend} />
