@@ -1,8 +1,9 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from typing import Dict, List
 
 from app.utils.jwt import decode_token
-from app.services.chat_service import send_message, edit_message, remove_message, mark_msg_read # Import mark_msg_read
+from app.services.chat_service import send_message, edit_message, remove_message, mark_msg_read, get_room
+from app.models.user_model import find_user_by_id
 
 router = APIRouter(tags=["WebSocket"])
 
@@ -44,6 +45,24 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         return
 
     user_id = payload["sub"]
+    
+    # Validate that the user exists
+    user_doc = await find_user_by_id(user_id)
+    if not user_doc:
+        await websocket.close(code=1008)
+        return
+    
+    # Check session validity (same as REST API)
+    token_salt = payload.get("lid")
+    if token_salt is None or token_salt != user_doc.get("last_login_salt"):
+        await websocket.close(code=1008)
+        return
+    
+    # Verify user is a participant of the room
+    room = await get_room(room_id)
+    if not room or user_id not in room.participants:
+        await websocket.close(code=1008)
+        return
 
     await manager.connect(room_id, websocket)
 

@@ -1,8 +1,9 @@
 from pydantic_settings import BaseSettings
-from pydantic import AnyUrl
+from pydantic import AnyUrl, field_validator
 from functools import lru_cache
 from dotenv import load_dotenv
 import os
+import secrets
 
 load_dotenv()
 
@@ -18,6 +19,21 @@ class Settings(BaseSettings):
     CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME")
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY")
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET")
+    
+    # Environment indicator for CORS and security settings
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
+
+    @field_validator('JWT_SECRET_KEY')
+    @classmethod
+    def validate_jwt_secret(cls, v):
+        if not v:
+            # Generate a secure random secret if none provided (for development only)
+            if os.getenv("ENVIRONMENT") != "development":
+                raise ValueError("JWT_SECRET_KEY must be set in production")
+            return secrets.token_urlsafe(32)
+        if len(v) < 32:
+            raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+        return v
 
     class Config:
         env_file = ".env"

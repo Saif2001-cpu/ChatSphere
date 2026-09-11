@@ -2,10 +2,12 @@ fastapi
 uvicorn[standard]
 motor
 pydantic[email]
-pydantic-settings  
+pydantic-settings
 python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
 cloudinary
 argon2-cffi
+slowapi
+redis
